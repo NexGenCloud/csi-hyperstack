@@ -1,0 +1,81 @@
+version: '3'
+
+silent: true
+
+vars:
+  NAME: "csi-hyperstack"
+  DRIVER_NAME: "hyperstack.csi.nexgencloud.com"
+  IMAGE_REPO: "reg.digitalocean.ngbackend.cloud/nexgenk8s/csi-hyperstack"
+
+  DIR_DIST: "{{ .ROOT_DIR }}/dist"
+
+tasks:
+  build:
+    desc: |
+      Builds the CSI driver
+    var:
+      ARCH:
+        # language=bash
+        sh: echo "$(go env GOOS)_$(go env GOARCH)"
+      SILENT: |-
+        {{.SILENT | default "false"}}
+    env:
+      PACKAGE_NAME: "{{ .NAME }}"
+      DRIVER_NAME: "{{ .DRIVER_NAME }}"
+    cmds:
+      # language=bash
+      - |
+        echo -n "Building csi driver... "
+        if [[ "{{ .SILENT }}" != "true" ]]; then
+          echo ""
+        fi
+      # language=bash
+      - |
+        if [[ "{{ .SILENT }}" == "true" ]]; then
+          exec &> /dev/null
+        fi
+        goreleaser check
+        BIN_PATH="{{ .DIR_DIST }}/{{ .NAME }}"
+        goreleaser build --snapshot --clean --single-target
+      # language=bash
+      - echo "done"
+
+  docker-build:
+    desc: |
+      Builds the docker image
+    cmds:
+      # language=bash
+      - |
+        docker buildx build --platform linux/x86_64 \
+          -f Dockerfile \
+          -t "{{.IMAGE_REPO}}:latest-build" \
+          --pull \
+          --cache-from "{{.IMAGE_REPO}}:latest-build" \
+          --target build \
+          .
+
+        docker buildx build --platform linux/x86_64 \
+          -f Dockerfile \
+          -t "{{.IMAGE_REPO}}:latest" \
+          --pull \
+          --cache-from "{{.IMAGE_REPO}}:latest-build" \
+          --cache-from "{{.IMAGE_REPO}}:latest" \
+          --target runtime \
+          .
+
+  docker-push:
+    desc: |
+      Pushes the docker image
+    cmds:
+      # language=bash
+      - |
+        docker push {{.IMAGE_REPO}}
+
+  start:
+    desc: |
+      Starts local CSI driver instance
+    cmds:
+      # language=bash
+      - |
+        docker-compose down
+        docker-compose up -d

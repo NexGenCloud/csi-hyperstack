@@ -1,0 +1,12 @@
+# https://kubernetes-csi.github.io/docs/csi-driver-object.html
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: hostpath.csi.k8s.io
+  labels:
+    {{- include "csi-hyperstack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: csi-driver
+spec:
+  volumeLifecycleModes:
+    - Persistent
+  fsGroupPolicy: None

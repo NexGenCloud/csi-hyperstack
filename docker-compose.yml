@@ -1,0 +1,27 @@
+services:
+  csi-hyperstack:
+    restart: on-failure
+    hostname: "csi-hyperstack"
+    stdin_open: true
+    tty: true
+    build:
+      context: "."
+      dockerfile: "./Dockerfile"
+    image: "reg.digitalocean.ngbackend.cloud/nexgenk8s/csi-hyperstack:latest"
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    command:
+      - csi-hyperstack
+      - start
+      - --endpoint
+      - "tcp://0.0.0.0:8081"
+      - --hyperstack-cluster-id
+      - ""
+      - --hyperstack-node-id
+      - ""
+      - --service-controller-enabled
+      - --service-node-enabled
+    environment:
+      HYPERSTACK_API_KEY: ~
+      HYPERSTACK_API_ADDRESS: ~

@@ -1,0 +1,60 @@
+fullnameOverride: ~
+nameOverride: ~
+
+components:
+  # csiHyperstack: the main container that runs the CSI Hyperstack driver
+  csiHyperstack:
+    image: reg.digitalocean.ngbackend.cloud/nexgenk8s/csi-hyperstack:main-latest
+    hyperstackClusterId: ~
+
+  # csiExternalHealthMonitorController: a sidecar container that monitors the health of volumes by calling ListVolumes and GetVolumeStats functions of CSI drivers
+  # https://github.com/kubernetes-csi/external-health-monitor
+  csiExternalHealthMonitorController:
+    enabled: true
+    image: registry.k8s.io/sig-storage/csi-external-health-monitor-controller:v0.12.1
+
+  # nodeDriverRegistrar: a sidecar container that registers the CSI driver with the kubelet
+  # https://github.com/kubernetes-csi/node-driver-registrar
+  nodeDriverRegistrar:
+    enabled: true
+    image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.10.1
+
+  # livenessProbe: a sidecar container that checks the liveness of the CSI driver by calling GetPluginInfo and Probe functions of CSI drivers
+  # https://github.com/kubernetes-csi/livenessprobe
+  livenessProbe:
+    enabled: true
+    image: registry.k8s.io/sig-storage/livenessprobe:v2.12.0
+
+  # csiAttacher: a sidecar container that attaches volumes to nodes by calling ControllerPublish and ControllerUnpublish functions of CSI drivers
+  # https://github.com/kubernetes-csi/external-attacher
+  csiAttacher:
+    enabled: true
+    image: registry.k8s.io/sig-storage/csi-attacher:v4.6.1
+
+  # csiProvisioner: a sidecar container that provisions volumes by calling CreateVolume and DeleteVolume functions of CSI drivers
+  # https://github.com/kubernetes-csi/external-provisioner
+  csiProvisioner:
+    enabled: true
+    image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.1
+
+  # csiResizer: a sidecar container that resizes volumes by calling ControllerExpandVolume functions of CSI drivers
+  # https://github.com/kubernetes-csi/external-resizer
+  csiResizer:
+    # TODO: not supported by platform yet
+    enabled: false
+    image: registry.k8s.io/sig-storage/csi-resizer:v1.11.1
+
+  # csiSnapshotter: a sidecar container that creates snapshots of volumes by calling CreateSnapshot and DeleteSnapshot functions of CSI drivers
+  # https://github.com/kubernetes-csi/external-snapshotter
+  csiSnapshotter:
+    # TODO: not supported by platform yet
+    enabled: false
+    image: registry.k8s.io/sig-storage/csi-snapshotter:v8.0.1
+
+hyperstack:
+  apiAddress: ~
+  apiKey: ~
+
+commonLabels:
+  app.kubernetes.io/part-of: csi-hyperstack
+  app.kubernetes.io/instance: hyperstack.csi.nexgencloud.com

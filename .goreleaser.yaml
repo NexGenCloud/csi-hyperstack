@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 1
+
+dist: "./dist"
+
+project_name: "csi-hyperstack"
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    env:
+      - CGO_ENABLED=0
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X "main.name={{.Env.PACKAGE_NAME}}"
+      - -s -w -X "main.version={{.Version}}"
+      - -s -w -X "k8s.io/csi-hyperstack/pkg/driver.DriverName={{.Env.DRIVER_NAME}}"
+      - -s -w -X "k8s.io/csi-hyperstack/pkg/driver.DriverVersion={{.Version}}"
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: '{{ .ProjectName }}'
+    no_unique_dist_dir: true
+
+archives:
+  - format: binary
+
+changelog:
+  skip: true

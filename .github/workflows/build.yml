@@ -1,0 +1,66 @@
+name: Container image
+
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+
+env:
+  GITEA_ACTIONS_URL: https://u:${{secrets.CLONE_TOKEN}}@git.ngbackend.cloud/CI-CD
+
+jobs:
+  build:
+    #runs-on: infrahub-stg-fe-1
+    steps:
+      - name: Install docker cli
+        run: |
+          apt-get update
+          apt-get install -y docker.io
+
+      - name: checkout repo
+        uses: ${{ env.GITEA_ACTIONS_URL}}/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: ${{ env.GITEA_ACTIONS_URL}}/setup-buildx-action@v3
+
+      - name: login to registry
+        uses: ${{ env.GITEA_ACTIONS_URL}}/login-action@v2
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Docker metadata
+        id: meta
+        uses: ${{ env.GITEA_ACTIONS_URL}}/metadata-action@v4
+        with:
+          #images: ${{secrets.REGISTRY_URL}}/${{ gitea.repository }}
+          images: ${{secrets.REGISTRY_URL}}/nexgenk8s/csi-hyperstack
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=pr,suffix=-{{date 'YYYYMMDD'}}-{{sha}}
+            type=ref,event=branch,value={{branch}},suffix=-{{date 'YYYYMMDD'}}-{{sha}}
+            type=ref,event=branch,value={{branch}},suffix=-latest
+
+      - name: Build image
+        id: buildpush
+        uses: ${{ env.GITEA_ACTIONS_URL}}/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Prepare notification
+        id: set_result_color
+        if: always()
+        run: |
+          if [[ ${{ job.status }} == 'success' ]]; then
+              echo "color=good" >> $GITHUB_OUTPUT
+          else
+              echo "color=danger" >> $GITHUB_OUTPUT
+          fi
+          echo "IMAGE=${{env.DOCKER_METADATA_OUTPUT_TAGS}}"|xargs >> $GITHUB_OUTPUT

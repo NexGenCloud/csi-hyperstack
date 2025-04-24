@@ -1,0 +1,214 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "csi-hyperstack.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "csi-hyperstack.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "csi-hyperstack.name" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "csi-hyperstack.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "csi-hyperstack.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "csi-hyperstack.serviceAccountName" . }}
+      containers:
+        - name: csi-hyperstack
+          image: {{ .Values.components.csiHyperstack.image }}
+          args:
+            - "csi-hyperstack"
+            - "start"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--hyperstack-api-address=$(HYPERSTACK_API_ADDRESS)"
+            - "--hyperstack-api-key=$(HYPERSTACK_API_KEY)"
+            - "--hyperstack-cluster-id=$(HYPERSTACK_CLUSTER_ID)"
+            - "--hyperstack-node-id=$(KUBE_NODE_NAME)"
+            - "--service-controller-enabled"
+            - "--service-node-enabled"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: HYPERSTACK_API_ADDRESS
+              value: {{ .Values.hyperstack.apiAddress }}
+            - name: HYPERSTACK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "csi-hyperstack.fullname" . }}-secrets
+                  key: apiKey
+            - name: HYPERSTACK_CLUSTER_ID
+              value: {{ .Values.components.csiHyperstack.hyperstackClusterId }}
+          securityContext:
+            privileged: true
+          ports:
+            {{- if .Values.components.livenessProbe.enabled }}
+            - containerPort: 9898
+              name: healthz
+              protocol: TCP
+            {{- else }}
+            - containerPort: 8080
+              name: auth
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: {{ if .Values.components.livenessProbe.enabled }}/healthz{{ else }}/auth{{ end }}
+              port: {{ if .Values.components.livenessProbe.enabled }}healthz{{ else }}8080{{ end }}
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 2
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+            - mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
+              name: mountpoint-dir
+            - mountPath: /var/lib/kubelet/plugins
+              mountPropagation: Bidirectional
+              name: plugins-dir
+
+        {{- if .Values.components.csiExternalHealthMonitorController.enabled }}
+        # CSI External Health Monitor Controller: a sidecar container that monitors the health of volumes by calling ListVolumes and GetVolumeStats functions of CSI drivers
+        # https://github.com/kubernetes-csi/external-health-monitor
+        - name: csi-external-health-monitor-controller
+          image: {{ .Values.components.csiExternalHealthMonitorController.image }}
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--leader-election"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        {{- end }}
+
+        {{- if .Values.components.nodeDriverRegistrar.enabled }}
+        # Node Driver Registrar: a sidecar container that registers the CSI driver with the kubelet
+        # https://github.com/kubernetes-csi/node-driver-registrar
+        - name: node-driver-registrar
+          image: {{ .Values.components.nodeDriverRegistrar.image }}
+          args:
+            - --v=5
+            - --csi-address=/csi/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/csi-hostpath/csi.sock
+          securityContext:
+            privileged: true
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+            - mountPath: /registration
+              name: registration-dir
+        {{- end }}
+
+        {{- if .Values.components.livenessProbe.enabled }}
+        # Liveness Probe: a sidecar container that checks the liveness of the CSI driver by calling GetPluginInfo and Probe functions of CSI drivers
+        # https://github.com/kubernetes-csi/livenessprobe
+        - name: liveness-probe
+          image: {{ .Values.components.livenessProbe.image }}
+          args:
+            - --csi-address=/csi/csi.sock
+            - --health-port=9898
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+        {{- end }}
+
+        {{- if .Values.components.csiAttacher.enabled }}
+        # CSI Attacher: a sidecar container that attaches volumes to nodes by calling ControllerPublish and ControllerUnpublish functions of CSI drivers
+        # https://github.com/kubernetes-csi/external-attacher
+        - name: csi-attacher
+          image: {{ .Values.components.csiAttacher.image }}
+          args:
+            - --v=5
+            - --csi-address=/csi/csi.sock
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+        {{- end }}
+
+        {{- if .Values.components.csiProvisioner.enabled }}
+        # CSI Provisioner: a sidecar container that provisions volumes by calling CreateVolume and DeleteVolume functions of CSI drivers
+        # https://github.com/kubernetes-csi/external-provisioner
+        - name: csi-provisioner
+          image: {{ .Values.components.csiProvisioner.image }}
+          args:
+            - -v=5
+            - --csi-address=/csi/csi.sock
+            - --feature-gates=Topology=true
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+        {{- end }}
+
+        {{- if .Values.components.csiResizer.enabled }}
+        # CSI Resizer: a sidecar container that resizes volumes by calling ControllerExpandVolume functions of CSI drivers
+        # https://github.com/kubernetes-csi/external-resizer
+        - name: csi-resizer
+          image: {{ .Values.components.csiResizer.image }}
+          args:
+            - -v=5
+            - -csi-address=/csi/csi.sock
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+        {{- end }}
+
+        {{- if .Values.components.csiSnapshotter.enabled }}
+        # CSI Snapshotter: a sidecar container that creates snapshots of volumes by calling CreateSnapshot and DeleteSnapshot functions of CSI drivers
+        # https://github.com/kubernetes-csi/external-snapshotter
+        - name: csi-snapshotter
+          image: {{ .Values.components.csiSnapshotter.image }}
+          args:
+            - -v=5
+            - --csi-address=/csi/csi.sock
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+        {{- end }}
+
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi-hostpath
+            type: DirectoryOrCreate
+        - name: mountpoint-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: DirectoryOrCreate
+        {{- if .Values.components.nodeDriverRegistrar.enabled }}
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        {{- end }}
+        - name: plugins-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins
+            type: Directory
