@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"k8s.io/csi-hyperstack/pkg/utils"
+	util "k8s.io/csi-hyperstack/pkg/utils"
 	"k8s.io/csi-hyperstack/pkg/utils/mount"
 	"k8s.io/utils/exec"
 )
@@ -66,14 +66,18 @@ type DeviceMetadata struct {
 	Address string `json:"address,omitempty"`
 	// .. and other fields.
 }
+type HyperstackMetadata struct {
+	HyperstackVMId string `json:"hyperstack_vm_id,omitempty"`
+}
 
 // Metadata has the information fetched from OpenStack metadata service or
 // config drives. Assumes the "latest" meta_data.json format.
 type Metadata struct {
-	UUID             string           `json:"uuid"`
-	Name             string           `json:"name"`
-	AvailabilityZone string           `json:"availability_zone"`
-	Devices          []DeviceMetadata `json:"devices,omitempty"`
+	UUID             string             `json:"uuid"`
+	HyperstackVMId   HyperstackMetadata `json:"meta"`
+	Name             string             `json:"name"`
+	AvailabilityZone string             `json:"availability_zone"`
+	Devices          []DeviceMetadata   `json:"devices,omitempty"`
 	// .. and other fields we don't care about.  Expand as necessary.
 }
 
@@ -83,17 +87,17 @@ type metadataService struct {
 
 // IMetadata implements GetInstanceID & GetAvailabilityZone
 type IMetadata interface {
+	GetInstanceHostname() (string, error)
 	GetInstanceID() (string, error)
 	GetAvailabilityZone() (string, error)
+	GetHyperstackVMId() (string, error)
 }
 
 // GetMetadataProvider retrieves instance of IMetadata
 func GetMetadataProvider(order string) IMetadata {
-
-	if MetadataService == nil {
-		MetadataService = &metadataService{searchOrder: order}
-	}
-	return MetadataService
+	metadataService := &metadataService{}
+	metadataService.searchOrder = order
+	return metadataService
 }
 
 // Set sets the value of metadatacache
@@ -275,6 +279,14 @@ func Get(order string) (*Metadata, error) {
 	return metadataCache, nil
 }
 
+func (m *metadataService) GetInstanceHostname() (string, error) {
+	md, err := Get(m.searchOrder)
+	if err != nil {
+		return "", err
+	}
+	return md.Name, nil
+}
+
 // GetInstanceID return instance ID of the node
 func (m *metadataService) GetInstanceID() (string, error) {
 	md, err := Get(m.searchOrder)
@@ -282,6 +294,15 @@ func (m *metadataService) GetInstanceID() (string, error) {
 		return "", err
 	}
 	return md.UUID, nil
+}
+
+func (m *metadataService) GetHyperstackVMId() (string, error) {
+	md, err := Get(m.searchOrder)
+	if err != nil {
+		return "", err
+	}
+
+	return md.HyperstackVMId.HyperstackVMId, nil
 }
 
 // GetAvailabilityZone returns AZ of the node

@@ -5,4 +5,5 @@ dist/
 
 docker-compose.local.yml
 
-/values.yaml
+values.yaml
+dev-test/

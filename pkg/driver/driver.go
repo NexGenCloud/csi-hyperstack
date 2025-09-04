@@ -3,6 +3,8 @@ package driver
 import (
 	"context"
 	"fmt"
+	"sync"
+
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -12,25 +14,27 @@ import (
 	"k8s.io/csi-hyperstack/pkg/utils/metadata"
 	"k8s.io/csi-hyperstack/pkg/utils/mount"
 	"k8s.io/klog/v2"
-	"net/http"
-	"sync"
 )
 
 var (
 	DriverName    string
 	DriverVersion string
 
-	topologyKey = "topology." + DriverName + "/environment"
 	specVersion = "1.10.0"
 )
 
 type DriverOpts struct {
-	Endpoint             string
-	HyperstackClusterId  string
-	HyperstackNodeId     string
+	Endpoint string
+	// Environment          string
+	// HyperstackClusterId  string
+	// HyperstackNodeId     string
 	HyperstackApiKey     string
 	HyperstackApiAddress string
 }
+
+var (
+	volNameKeyFromControllerPublishVolume = "hyperstack/volume-name"
+)
 
 type Driver struct {
 	name    string
@@ -38,7 +42,7 @@ type Driver struct {
 
 	opts *DriverOpts
 
-	serverMux *http.ServeMux
+	// serverMux *http.ServeMux
 
 	hyperstackClient hyperstack.IHyperstack
 
@@ -54,7 +58,7 @@ type Driver struct {
 func NewDriver(opts *DriverOpts) *Driver {
 	d := &Driver{}
 	d.opts = opts
-
+	fmt.Printf("Driver started with opts: %#v\n", d.opts)
 	d.name = DriverName
 	d.version = DriverVersion
 
@@ -136,7 +140,7 @@ func (d *Driver) Run(
 	wg *sync.WaitGroup,
 ) (*grpc.Server, error) {
 	if nil == d.serviceController && nil == d.serviceNode {
-		return nil, fmt.Errorf("No CSI services initialized")
+		return nil, fmt.Errorf("no CSI services initialized")
 	}
 
 	metrics.RegisterMetrics("hyperstack-csi")
