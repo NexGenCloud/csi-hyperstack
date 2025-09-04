@@ -1,0 +1,11 @@
+{{- if .Values.storageClass.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageClass.name }}
+provisioner: hyperstack.csi.nexgencloud.com
+volumeBindingMode: {{ .Values.storageClass.volumeBindingMode | default "Immediate" }}
+parameters:
+  type: Cloud-SSD
+reclaimPolicy: {{ .Values.storageClass.reclaimPolicy | default "Retain" }}
+{{- end }}

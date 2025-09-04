@@ -25,6 +25,7 @@ const (
 )
 
 type IMount interface {
+	Mount(source, target, fstype string, options []string) error
 	Mounter() *mount.SafeFormatAndMount
 	ScanForAttach(devicePath string) error
 	GetDevicePath(volumeID string) (string, error)
@@ -77,6 +78,49 @@ func (m *Mount) Mounter() *mount.SafeFormatAndMount {
 	return m.BaseMounter
 }
 
+// func (m *Mount) Mount(source, target, fstype string, options []string) error {
+// 	klog.Infof("Mount: called with args %s, %s, %s, %v", source, target, fstype, options)
+// 	// err := os.MkdirAll(target, 0777)
+// 	// if err != nil {
+// 	// 	return fmt.Errorf("error: %s, creating the target dir", err.Error())
+// 	// }
+// 	return m.Mounter().Mount(source, target, fstype, options)
+// }
+
+func (m *Mount) Mount(source string, target string, fsType string, options []string) error {
+	klog.Infof("mountDevice: called with args %s, %s, %s, %v", source, target, fsType, options)
+
+	if fsType == "" {
+		return fmt.Errorf("fstype is not provided")
+	}
+
+	mountArgs := []string{}
+	err := os.MkdirAll(target, 0777)
+	klog.Infof("mountDevice: created the target dir %s", target)
+	if err != nil {
+		return fmt.Errorf("error: %s, creating the target dir", err.Error())
+	}
+	// mountArgs = append(mountArgs, "-t", fsType)
+
+	// // check of options and then append them at the end of the mount command
+	// if len(options) > 0 {
+	// 	mountArgs = append(mountArgs, "-o", strings.Join(options, ","))
+	// }
+
+	// mountArgs = append(mountArgs, source)
+	// mountArgs = append(mountArgs, target)
+
+	err = m.Mounter().Mount(source, target, fsType, mountArgs)
+	if err != nil {
+		return fmt.Errorf("error %s, mounting the source %s to tar %s", err.Error(), source, target)
+	}
+	return nil
+}
+
+func (m *Mount) Unmount(target string) error {
+	return m.Mounter().Unmount(target)
+}
+
 // probeVolume probes volume in compute
 func probeVolume() error {
 	// rescan scsi bus
@@ -86,7 +130,7 @@ func probeVolume() error {
 			name := scsiPath + f.Name() + "/scan"
 			data := []byte("- - -")
 			if err := os.WriteFile(name, data, 0666); err != nil {
-				return fmt.Errorf("Unable to scan %s: %w", f.Name(), err)
+				return fmt.Errorf("unable to scan %s: %w", f.Name(), err)
 			}
 		}
 	}
