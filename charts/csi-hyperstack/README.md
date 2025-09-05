@@ -1,24 +1,10 @@
 # **CSI Hyperstack Helm Chart**  
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)  
 [![Helm](https://img.shields.io/badge/helm-chart-blue)](https://helm.sh/)  
 [![Kubernetes](https://img.shields.io/badge/kubernetes-1.24+-green)](https://kubernetes.io/)
 
 **CSI Hyperstack Helm Chart** provides an easy way to deploy the **Container Storage Interface (CSI) driver** for **Hyperstack** on Kubernetes.  
 
 This Helm chart simplifies installing, upgrading, and managing the CSI driver required for dynamically provisioning storage volumes on **Hyperstack**.
-
----
-
-## **Table of Contents**
-- [Overview](#overview)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Upgrading](#upgrading)
-- [Uninstalling](#uninstalling)
-- [Configuration](#configuration)
-- [Development](#development)
-- [License](#license)
 
 ---
 
@@ -36,7 +22,7 @@ It deploys all required CSI components, including:
 ✅ Deploys the **Hyperstack CSI driver**  
 ✅ Supports **dynamic volume provisioning**  
 ✅ Works with **Helm 3+**  
-✅ Kubernetes **1.24+** tested  
+✅ Kubernetes **1.24+**  
 ✅ Easily configurable via `values.yaml`
 
 ---
@@ -53,18 +39,18 @@ Before installing, ensure you have:
 
 ### **1. Add the Helm Repository**
 ```bash
-helm repo add nexgencloud https://nexgencloud.github.io/csi-hyperstack-helm-chart
+helm repo add nexgencloud https://nexgencloud.github.io/csi-hyperstack
 helm repo update
 ```
 
 ### **2. Install the Chart**
 ```bash
-helm install csi-hyperstack nexgencloud/csi-hyperstack-helm-chart   --namespace kube-system   --create-namespace
+helm install csi-hyperstack nexgencloud/csi-hyperstack --namespace kube-system --create-namespace --set hyperstack.apiKey=<YOUR_HS_API_KEY>
 ```
 
 ### **3. Verify Installation**
 ```bash
-kubectl get pods -n kube-system -l app.kubernetes.io/name=csi-hyperstack
+kubectl get pods -n kube-system
 ```
 
 You should see all CSI controller and node pods in **Running** state.
@@ -75,7 +61,7 @@ You should see all CSI controller and node pods in **Running** state.
 To upgrade to the latest chart version:
 
 ```bash
-helm upgrade csi-hyperstack nexgencloud/csi-hyperstack-helm-chart   --namespace kube-system
+helm upgrade csi-hyperstack nexgencloud/csi-hyperstack --namespace kube-system
 ```
 
 ---
@@ -93,20 +79,23 @@ helm uninstall csi-hyperstack -n kube-system
 This chart supports custom configuration via a `values.yaml` file.  
 Here are the most commonly used options:
 
-| **Parameter**                 | **Description**                    | **Default**          |
-|------------------------------|------------------------------------|----------------------|
-| `controller.replicas`       | Number of controller replicas      | `2`                  |
-| `node.tolerations`          | Tolerations for node pods          | `[]`                 |
-| `storageClass.name`         | Default StorageClass name          | `hyperstack-csi`     |
-| `storageClass.reclaimPolicy`| PVC reclaim policy                 | `Delete`             |
-| `hyperstack.apiKey`         | API key for Hyperstack            | `""`                 |
-| `hyperstack.endpoint`      | Hyperstack API endpoint           | `""`                 |
+Mandetory value during chart installations.
 
-To override defaults:
+| Key                 | Type   | Description                                        | Example                            |
+| ------------------- | ------ | -------------------------------------------------- | ---------------------------------- |
+| `hyperstack.apiKey` | string | API key for authenticating with the Hyperstack API | `hyperstack.apiKey=abcd1234` |
 
-```bash
-helm install csi-hyperstack nexgencloud/csi-hyperstack-helm-chart   --namespace kube-system   --set hyperstack.apiKey=YOUR_API_KEY   --set hyperstack.endpoint=https://infrahub-api.nexgencloud.com
-```
+Other commonly used optional values
+
+| Key                              | Type   | Description                                                 | Default                           |
+| -------------------------------- | ------ | ----------------------------------------------------------- | ------------------------------------------- |
+| `components.csiHyperstack.tag`          | string | CSI Hyperstack Image tag                              | `latest` |
+| `hyperstack.apiAddress`          | string | Base URL of the Hyperstack API                              | `https://infrahub-api.nexgencloud.com/v1` |
+| `storageClass.enabled`           | bool   | Whether to create a default `StorageClass`                  | `true`                                      |
+| `storageClass.name`              | string | Name of the `StorageClass`                                  | `csi-hyperstack`                          |
+| `storageClass.volumeBindingMode` | string | Volume binding mode (`Immediate` or `WaitForFirstConsumer`) | `Immediate`                               |
+| `storageClass.reclaimPolicy`     | string | Reclaim policy (`Delete` or `Retain`)                       | `Delete`                                  |
+
 
 ---
 
@@ -114,26 +103,8 @@ helm install csi-hyperstack nexgencloud/csi-hyperstack-helm-chart   --namespace 
 If you want to make changes to the chart:
 
 ```bash
-# Clone the repository
-git clone https://github.com/NexGenCloud/csi-hyperstack-helm-chart.git
-cd csi-hyperstack-helm-chart
-
 # Lint the chart
 helm lint .
-
 # Test install locally
-helm install csi-hyperstack ./ --dry-run --debug
+helm install csi-hyperstack --set hyperstack.apiKey=<YOUR_HS_API_key> . --dry-run --debug
 ```
-
----
-
-## **License**
-This project is licensed under the **Apache 2.0 License**.  
-See [LICENSE](LICENSE) for details.
-
----
-
-## **Next Steps**
-- [Helm Documentation](https://helm.sh/docs/)
-- [Kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/)
-- [NexGen Cloud Hyperstack](https://nexgencloud.com)

@@ -15,15 +15,15 @@ spec:
       labels:
         {{- include "csi-hyperstack.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.hyperstack.imagePullSecret }}
+      {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
-        - name: {{ .Values.hyperstack.imagePullSecret }}
+        - name: {{ .Values.imagePullSecrets }}
       {{- end }}
       serviceAccountName: csi-hyperstack-controller-sa
       containers:
         - name: csi-hyperstack
-          image: reg.digitalocean.ngbackend.cloud/hyperstack-csi-driver/csi:v0.0.1
-          imagePullPolicy:  {{ .Values.components.csiHyperstack.imagePullPolicy }}
+          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag }}
+          imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy }}
           command: ["csi-hyperstack"]
           args:
             - "start"
@@ -65,7 +65,6 @@ spec:
             - mountPath: /var/lib/kubelet/plugins
               mountPropagation: Bidirectional
               name: plugins-dir
-        {{- if .Values.components.csiAttacher.enabled }}
         - name: csi-attacher
           image: {{ .Values.components.csiAttacher.image }}
           args:
@@ -76,8 +75,6 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-        {{- end }}
-        {{- if .Values.components.csiProvisioner.enabled }}
         - name: csi-provisioner
           image: {{ .Values.components.csiProvisioner.image }}
           args:
@@ -89,8 +86,6 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-        {{- end }}
-        {{- if .Values.components.csiResizer.enabled }}
         - name: csi-resizer
           image: {{ .Values.components.csiResizer.image }}
           args:
@@ -101,8 +96,6 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-        {{- end }}
-        {{- if .Values.components.csiSnapshotter.enabled }}
         - name: csi-snapshotter
           image: {{ .Values.components.csiSnapshotter.image }}
           args:
@@ -113,7 +106,6 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-        {{- end }}
       volumes:
         - name: socket-dir
           hostPath:
