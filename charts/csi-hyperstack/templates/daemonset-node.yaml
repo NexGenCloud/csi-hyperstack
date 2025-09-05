@@ -14,16 +14,16 @@ spec:
       labels:
         {{- include "csi-hyperstack.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.hyperstack.imagePullSecret }}
+      {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
-        - name: {{ .Values.hyperstack.imagePullSecret }}
+        - name: {{ .Values.imagePullSecrets }}
       {{- end }}
       serviceAccountName: csi-hyperstack-node-sa
       hostNetwork: true
       containers:
         - name: csi-hyperstack-node
-          image: reg.digitalocean.ngbackend.cloud/hyperstack-csi-driver/csi:v0.0.1
-          imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy }}
+          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag }}
+          imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy}}
           securityContext:
             privileged: true
             runAsUser: 0
@@ -32,8 +32,8 @@ spec:
           args:
             - "start"
             - "--endpoint=unix:///csi/csi.sock"
-            - "--hyperstack-api-address={{ .Values.components.csiHyperstack.hyperstackApiAddress }}"
-            - "--hyperstack-api-key={{ .Values.components.csiHyperstack.hyperstackApiKey }}"
+            - "--hyperstack-api-address={{ .Values.hyperstack.apiKey }}"
+            - "--hyperstack-api-key={{ .Values.hyperstack.apiAddress }}"
             - "--service-node-enabled"
           env:
             - name: KUBE_NODE_NAME

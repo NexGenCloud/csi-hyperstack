@@ -23,15 +23,36 @@ Before you begin, ensure you have the following tools installed:
   go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
   ```
 
-## Usage
+## Development
 
-You can install the Hyperstack CSI Driver using the provided Helm chart. Before that clone the repository.
-
+Run `go mod tidy` before starting the gRPC server:
 
 ```bash
-helm upgrade --install csi-hyperstack --values ./deploy/helm/values.yaml -n csi-driver-test --create-namespace ./deploy/helm
+go run main.go start \
+  --endpoint="unix://tmp/csi-hyperstack.sock" \
+  --hyperstack-api-address="<API_BASE_URL>" \
+  --hyperstack-api-key="<API_KEY>" \
+  --service-controller-enabled \
+  --service-node-enabled
 ```
-After installation, verify that all pods in the `csi-driver` namespace are running successfully. For example usage, please refer to [example/manifest](./example/manifest.yaml)
+
+To list the available gRPC calls:
+
+```bash
+grpcurl --plaintext unix:///tmp/csi-hyperstack.sock list
+```
+
+You can invoke a specific RPC method for a given operation using `grpcurl`.
+
+To build the project:
+
+```bash
+task build
+```
+
+## Usage
+
+Refer to the [charts/csi-hyperstack](./charts/csi-hyperstack/README.md) documentation for details on installation and usage with Helm.
 
 
 ## Documentation
