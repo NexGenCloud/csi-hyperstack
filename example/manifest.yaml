@@ -1,0 +1,44 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: hyperstack-sc
+provisioner: hyperstack.csi.nexgencloud.com
+volumeBindingMode: Immediate
+parameters:
+  type: Cloud-SSD
+reclaimPolicy: Delete
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: hyperstack-sc
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+  namespace: default
+spec:
+  containers:
+  - name: my-container
+    image: nginx:latest
+    command: [ "sleep", "infinity" ]
+    volumeMounts:
+    - mountPath: "/mnt/test"
+      name: my-pvc
+  volumes:
+  - name: my-pvc
+    persistentVolumeClaim:
+      claimName: my-pvc

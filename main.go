@@ -24,7 +24,7 @@ func main() {
 
 	_ = viper.BindEnv("hyperstack-api-key", "HYPERSTACK_API_KEY")
 	_ = viper.BindEnv("hyperstack-api-address", "HYPERSTACK_API_ADDRESS")
-
+	// _ = viper.BindEnv("hyperstack-environment", "HYPERSTACK_ENVIRONMENT")
 	viper.SetDefault("endpoint", "unix://var/run/csi.sock")
 	viper.SetDefault("metrics-enabled", true)
 	viper.SetDefault("http-endpoint", ":8080")
@@ -56,17 +56,19 @@ func main() {
 	flags.String("endpoint", viper.GetString("endpoint"), "CSI gRPC endpoint")
 	flags.Bool("metrics-enabled", viper.GetBool("metrics-enabled"), "Enables metrics endpoint")
 	flags.String("http-endpoint", viper.GetString("http-endpoint"), "HTTP endpoint")
-	flags.String("hyperstack-cluster-id", "", "Hyperstack cluster identifier")
-	flags.String("hyperstack-node-id", "", "Hyperstack node identifier")
+	// flags.String("hyperstack-cluster-id", "", "Hyperstack cluster identifier")
+	// flags.String("hyperstack-node-id", "", "Hyperstack node identifier")
 	flags.String("hyperstack-api-key", viper.GetString("hyperstack-api-key"), "Hyperstack API key (env: HYPERSTACK_API_KEY)")
 	flags.String("hyperstack-api-address", viper.GetString("hyperstack-api-address"), "Hyperstack API server address (env: HYPERSTACK_API_ADDRESS)")
+	// flags.String("hyperstack-environment", viper.GetString("hyperstack-environment"), "Hyperstack environment name")
 	flags.Bool("service-controller-enabled", false, "Enables CSI controller service")
 	flags.Bool("service-node-enabled", false, "Enables CSI node service")
 
-	_ = startCmd.MarkFlagRequired("hyperstack-cluster-id")
-	_ = startCmd.MarkFlagRequired("hyperstack-node-id")
+	// _ = startCmd.MarkFlagRequired("hyperstack-cluster-id")
+	// _ = startCmd.MarkFlagRequired("hyperstack-node-id")
 	_ = startCmd.MarkFlagRequired("hyperstack-api-key")
 	_ = startCmd.MarkFlagRequired("hyperstack-api-address")
+	// _ = startCmd.MarkFlagRequired("hyperstack-environment")
 
 	rootCmd.AddCommand(startCmd)
 
@@ -120,11 +122,12 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.
 
 func driverStart(ctx context.Context) (err error) {
 	drv := driver.NewDriver(&driver.DriverOpts{
-		Endpoint:             viper.GetString("endpoint"),
-		HyperstackClusterId:  viper.GetString("hyperstack-cluster-id"),
-		HyperstackNodeId:     viper.GetString("hyperstack-node-id"),
+		Endpoint: viper.GetString("endpoint"),
+		// HyperstackClusterId:  viper.GetString("hyperstack-cluster-id"),
+		// HyperstackNodeId:     viper.GetString("hyperstack-node-id"),
 		HyperstackApiKey:     viper.GetString("hyperstack-api-key"),
 		HyperstackApiAddress: viper.GetString("hyperstack-api-address"),
+		// Environment:          viper.GetString("hyperstack-environment"),
 	})
 
 	drv.SetupIdentityService()

@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "csi-hyperstack.fullname" . }}-node
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "csi-hyperstack.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "csi-hyperstack.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "csi-hyperstack.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.hyperstack.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.hyperstack.imagePullSecret }}
+      {{- end }}
+      serviceAccountName: csi-hyperstack-node-sa
+      hostNetwork: true
+      containers:
+        - name: csi-hyperstack-node
+          image: reg.digitalocean.ngbackend.cloud/hyperstack-csi-driver/csi:v0.0.1
+          imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy }}
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 0
+          command: ["csi-hyperstack"]
+          args:
+            - "start"
+            - "--endpoint=unix:///csi/csi.sock"
+            - "--hyperstack-api-address={{ .Values.components.csiHyperstack.hyperstackApiAddress }}"
+            - "--hyperstack-api-key={{ .Values.components.csiHyperstack.hyperstackApiKey }}"
+            - "--service-node-enabled"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+            - mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
+              name: mountpoint-dir
+            - mountPath: /var/lib/kubelet/plugins
+              mountPropagation: Bidirectional
+              name: plugins-dir
+            - mountPath: /dev
+              name: host-dev-dir
+        - name: node-driver-registrar
+          image: {{ .Values.components.nodeDriverRegistrar.image }}
+          args:
+            - --v=5
+            - --csi-address=/csi/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/hyperstack.csi.nexgencloud.com/csi.sock
+          securityContext:
+            privileged: true
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+            - mountPath: /registration
+              name: registration-dir
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/hyperstack.csi.nexgencloud.com
+            type: DirectoryOrCreate
+        - name: mountpoint-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        - name: plugins-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins
+            type: Directory
+        - name: host-dev-dir
+          hostPath:
+            path: /dev
+            type: Directory
