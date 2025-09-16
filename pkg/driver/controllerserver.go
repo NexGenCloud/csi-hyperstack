@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
@@ -32,8 +31,8 @@ func (cs *controllerServer) CreateVolume(
 	ctx context.Context,
 	req *csi.CreateVolumeRequest,
 ) (*csi.CreateVolumeResponse, error) {
-	fmt.Println("==============Create volume called ==============")
-	fmt.Printf("CreateVolume: Driver opts: %#v\n", cs.driver.opts)
+	klog.Infof("==============Create volume called ==============")
+	klog.Infof("CreateVolume: Driver opts: %#v\n", cs.driver.opts)
 	if err := cs.driver.ValidateControllerServiceRequest(
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 	); err != nil {
@@ -120,7 +119,7 @@ func (cs *controllerServer) CreateVolume(
 			time.Sleep(2 * time.Second)
 			continue
 		} else {
-			klog.Infof("CreateVolume: GetVolume attempt %d returned volume: %+v", i+1, v)
+			klog.Infof("CreateVolume: GetVolume attempt %d returned volume: %+v", i+1, protosanitizer.StripSecrets(v))
 			if *v.Status == "available" {
 				klog.Infof("CreateVolume: Volume is now available-\nID: %v\nStatus: %v\nVolume Name: %v", *v.Id, *v.Status, *v.Name)
 				vol = v

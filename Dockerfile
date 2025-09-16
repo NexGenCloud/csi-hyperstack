@@ -53,15 +53,11 @@ ENV USER_NAME app
 RUN addgroup -g "${GROUP_ID}" "${GROUP_NAME}" \
  && adduser -u "${USER_ID}" -G "${GROUP_NAME}" -h "${HOME}" -D "${USER_NAME}"
 
-COPY --link build/entrypoint.sh entrypoint.sh
-RUN chmod +x entrypoint.sh
-
 COPY --link --from=build /build/dist/csi-hyperstack .
 RUN chmod +x csi-hyperstack
 
 ENV LOCAL_HEALTH_PORT "8080"
 HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=1 \
   CMD curl -f "http://localhost:${LOCAL_HEALTH_PORT}/health" || exit 1
-RUN mkdir -p /csi
-# ENTRYPOINT ["entrypoint.sh"]
-# CMD ["csi-hyperstack", "start", "--endpoint", "unix:///csi/csi.sock", "--hyperstack-cluster-id", "''", "--hyperstack-node-id", "''", "--service-controller-enabled", "--service-node-enabled"]
+
+  RUN mkdir -p /csi

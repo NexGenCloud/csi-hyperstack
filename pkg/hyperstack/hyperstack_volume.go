@@ -76,9 +76,6 @@ func (hs *Hyperstack) GetVolume(ctx context.Context, volumeID string) (*volume.V
 	}
 	result, err := client.ListVolumesWithResponse(ctx, &volume.ListVolumesParams{})
 
-	fmt.Println("AttachVolumeToNode status code:", result.StatusCode())
-	fmt.Println("Response HTTP:", result.HTTPResponse)
-
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +85,7 @@ func (hs *Hyperstack) GetVolume(ctx context.Context, volumeID string) (*volume.V
 		return nil, fmt.Errorf("received nil response from volume attachment API")
 	}
 
-	// Check for error status codes
+	// Check for error status codescallResult
 	if result.JSON400 != nil {
 		return nil, fmt.Errorf("volume attachment failed with 400 error: %v", result.JSON400)
 	}
@@ -103,7 +100,6 @@ func (hs *Hyperstack) GetVolume(ctx context.Context, volumeID string) (*volume.V
 	if callResult == nil {
 		return nil, nil
 	}
-
 	for _, row := range *callResult {
 		if strconv.Itoa(*row.Id) == volumeID {
 			return &row, nil
@@ -219,9 +215,6 @@ func (hs *Hyperstack) AttachVolumeToNode(ctx context.Context, virtualMachineId i
 		},
 	)
 
-	fmt.Println("AttachVolumeToNode status code:", result.StatusCode())
-	fmt.Println("Response HTTP:", result.HTTPResponse)
-
 	if err != nil {
 		return nil, err
 	}
@@ -273,9 +266,6 @@ func (hs *Hyperstack) DetachVolumeFromNode(ctx context.Context, virtualMachineId
 			VolumeIds: &[]int{volumeIDInt},
 		},
 	)
-
-	fmt.Println("AttachVolumeToNode status code:", result.StatusCode())
-	fmt.Println("Response HTTP:", result.HTTPResponse)
 
 	if err != nil {
 		return nil, err
