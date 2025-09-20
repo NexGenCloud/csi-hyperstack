@@ -22,9 +22,9 @@ spec:
       serviceAccountName: csi-hyperstack-controller-sa
       containers:
         - name: csi-hyperstack
-          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag }}
+          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy }}
-          command: ["csi-hyperstack"]
+          # command: ["csi-hyperstack"]
           args:
             - "start"
             - "--endpoint=unix:///csi/csi.sock"

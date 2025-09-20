@@ -22,13 +22,13 @@ spec:
       hostNetwork: true
       containers:
         - name: csi-hyperstack-node
-          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag }}
+          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy}}
           securityContext:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
-          command: ["csi-hyperstack"]
+          # command: ["csi-hyperstack"]
           args:
             - "start"
             - "--endpoint=unix:///csi/csi.sock"
@@ -36,6 +36,10 @@ spec:
             - "--hyperstack-api-key={{ .Values.hyperstack.apiAddress }}"
             - "--service-node-enabled"
           env:
+            - name: DRIVER_NAME
+              value: "hyperstack.csi.nexgencloud.com"
+            - name: DRIVER_VERSION
+              value: "v1.0.0"
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
