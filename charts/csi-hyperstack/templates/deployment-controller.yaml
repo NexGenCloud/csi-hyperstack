@@ -86,23 +86,30 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-        - name: csi-resizer
-          image: {{ .Values.components.csiResizer.image }}
+        # - name: csi-resizer
+        #   image: {{ .Values.components.csiResizer.image }}
+        #   args:
+        #     - -v=5
+        #     - -csi-address=/csi/csi.sock
+        #   securityContext:
+        #     privileged: true
+        #   volumeMounts:
+        #     - mountPath: /csi
+        #       name: socket-dir
+        # - name: csi-snapshotter
+        #   image: {{ .Values.components.csiSnapshotter.image }}
+        #   args:
+        #     - -v=5
+        #     - --csi-address=/csi/csi.sock
+        #   securityContext:
+        #     privileged: true
+        #   volumeMounts:
+        #     - mountPath: /csi
+        #       name: socket-dir
+        - name: liveness-probe
+          image: {{ .Values.components.livenessProbe.image }}
           args:
-            - -v=5
-            - -csi-address=/csi/csi.sock
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - mountPath: /csi
-              name: socket-dir
-        - name: csi-snapshotter
-          image: {{ .Values.components.csiSnapshotter.image }}
-          args:
-            - -v=5
             - --csi-address=/csi/csi.sock
-          securityContext:
-            privileged: true
           volumeMounts:
             - mountPath: /csi
               name: socket-dir

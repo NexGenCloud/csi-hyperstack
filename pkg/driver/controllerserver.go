@@ -214,29 +214,6 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 			return nil, status.Errorf(codes.Internal, "ControllerPublishVolume: Failed to AttachVolumeToNode: %v", err)
 		}
 		klog.Infof("ControllerPublishVolume: AttachVolumeToNode succeeded -\nID: %v\nInstance id ID: %v\nStatus: %v\nVolume ID: %v", *attachVolume.Id, *attachVolume.InstanceId, *attachVolume.Status, *attachVolume.VolumeId)
-		maxAttempts := 30
-		klog.Infof("ControllerPublishVolume: Polling starting with max attempts: %d", maxAttempts)
-		for i := 0; i < maxAttempts; i++ {
-			klog.Infof("ControllerPublishVolume: Polling for volume to be attached %d/%d", i+1, maxAttempts)
-			v, err := cloud.GetVolume(ctx, volumeIDInt)
-			klog.Infof("ControllerPublishVolume: GetVolume returned volume from polling: %+v", v)
-			if err != nil {
-				klog.Warningf("ControllerPublishVolume: GetVolume attempt %d failed: %v", i+1, err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-			if v == nil {
-				klog.Warningf("ControllerPublishVolume: GetVolume attempt %d returned nil or incomplete volume", i+1)
-				time.Sleep(2 * time.Second)
-				continue
-			} else {
-				if *v.Status == "in-use" {
-					klog.Infof("ControllerPublishVolume: Volume is now in use-\nID: %v\nStatus: %v\nVolume Name: %v", *v.Id, *v.Status, *v.Name)
-					break
-				}
-			}
-			time.Sleep(2 * time.Second)
-		}
 	}
 	return &csi.ControllerPublishVolumeResponse{}, nil
 }

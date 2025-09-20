@@ -2,6 +2,7 @@ package driver
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -31,11 +32,15 @@ func (ids *identityServer) GetPluginInfo(
 	}, nil
 }
 
-func (ids *identityServer) Probe(
-	ctx context.Context,
-	req *csi.ProbeRequest,
-) (*csi.ProbeResponse, error) {
-	return &csi.ProbeResponse{}, nil
+func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	klog.Infof("probe called")
+	ids.driver.readyMu.Lock()
+	defer ids.driver.readyMu.Unlock()
+	return &csi.ProbeResponse{
+		Ready: &wrappers.BoolValue{
+			Value: ids.driver.ready,
+		},
+	}, nil
 }
 
 func (ids *identityServer) GetPluginCapabilities(
