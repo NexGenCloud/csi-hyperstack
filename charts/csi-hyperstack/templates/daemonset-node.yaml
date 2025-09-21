@@ -32,9 +32,32 @@ spec:
           args:
             - "start"
             - "--endpoint=unix:///csi/csi.sock"
-            - "--hyperstack-api-address={{ .Values.hyperstack.apiKey }}"
-            - "--hyperstack-api-key={{ .Values.hyperstack.apiAddress }}"
-            - "--service-node-enabled"
+            - "--hyperstack-api-address={{ .Values.hyperstack.apiAddress }}"
+            - "--hyperstack-api-key={{ .Values.hyperstack.apiKey }}"
+            - "--service-node-enabled=true"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  grpcurl -plaintext -unix /csi/csi.sock csi.v1.Identity.GetPluginInfo >/dev/null 2>&1 \
+                  && grpcurl -plaintext -unix /csi/csi.sock csi.v1.Node.NodeGetInfo >/dev/null 2>&1
+            # initialDelaySeconds: 20
+            # periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  grpcurl -plaintext -unix /csi/csi.sock csi.v1.Identity.GetPluginInfo >/dev/null 2>&1 \
+                  && grpcurl -plaintext -unix /csi/csi.sock csi.v1.Node.NodeGetInfo >/dev/null 2>&1
+            # initialDelaySeconds: 20
+            # periodSeconds: 10
+            # timeoutSeconds: 5
+            # failureThreshold: 3
+            # successThreshold: 1
           env:
             - name: DRIVER_NAME
               value: "hyperstack.csi.nexgencloud.com"
@@ -61,6 +84,12 @@ spec:
             - --v=5
             - --csi-address=/csi/csi.sock
             - --kubelet-registration-path=/var/lib/kubelet/plugins/hyperstack.csi.nexgencloud.com/csi.sock
+          livenessProbe:
+            exec:
+              command:
+              - /csi-node-driver-registrar
+              - --kubelet-registration-path=/var/lib/kubelet/plugins/hyperstack.csi.nexgencloud.com/csi.sock
+              - --mode=kubelet-registration-probe
           securityContext:
             privileged: true
           env:

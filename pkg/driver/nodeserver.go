@@ -36,6 +36,9 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	klog.Infof("\n==============NodeStageVolume: called================\n")
 	klog.Infof("NodeStageVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 	devicename := req.PublishContext[volNameKeyFromControllerPublishVolume]
+	if devicename == "" {
+		return nil, status.Error(codes.InvalidArgument, "Device name not found in publish context. Please wait for volume to be attached.")
+	}
 	klog.Infof("NodeStageVolume: devicename from publish context: %s", devicename)
 	err := formateAndMakeFS(devicename, "ext4")
 	if err != nil {
@@ -127,16 +130,10 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	klog.Infof("==============NodePublishVolume: called================\n")
 	klog.Infof("NodePublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
-	// make sure the requried fields are set and not empty
-
 	options := []string{"bind"}
 	if req.Readonly {
 		options = append(options, "ro")
 	}
-
-	// get req.VolumeCaps and make sure that you handle request for block mode as well
-	// here we are just handling request for filesystem mode
-	// in case of block mode, the source is going to be the device dir where volume was attached form ControllerPubVolume RPC
 
 	fsType := "ext4"
 	if req.VolumeCapability.GetMount().FsType != "" {
@@ -145,8 +142,6 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	source := req.StagingTargetPath
 	target := req.TargetPath
-
-	// we want to run mount -t fstype source target -o bind,ro
 
 	err := mountDevice(source, target, fsType, options)
 	if err != nil {

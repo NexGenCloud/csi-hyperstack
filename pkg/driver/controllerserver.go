@@ -201,11 +201,14 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	klog.Infof("ControllerPublishVolume: GetVolume succeeded -\nStatus: %s\nName: %s\nID: %d\nSize:%d", *getVolume.Status, *getVolume.Name, *getVolume.Id, *getVolume.Size)
 	if *getVolume.Status == "in-use" { //Volume is already attached
 		klog.Infof("ControllerPublishVolume: Volume %s is already in use", *getVolume.Name)
-		return &csi.ControllerPublishVolumeResponse{
-			PublishContext: map[string]string{
-				volNameKeyFromControllerPublishVolume: *(*getVolume.Attachments)[0].Device,
-			},
-		}, nil
+		if len(*getVolume.Attachments) > 0 {
+			klog.Infof("ControllerPublishVolume: Volume %s is already attached to node %s", *getVolume.Name, *(*getVolume.Attachments)[0].InstanceId)
+			return &csi.ControllerPublishVolumeResponse{
+				PublishContext: map[string]string{
+					volNameKeyFromControllerPublishVolume: *(*getVolume.Attachments)[0].Device,
+				},
+			}, nil
+		}
 	}
 	if *getVolume.Status == "available" {
 		attachVolume, err := cloud.AttachVolumeToNode(ctx, vmId, volumeIDInt)
