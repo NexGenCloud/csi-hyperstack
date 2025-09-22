@@ -22,15 +22,33 @@ spec:
       serviceAccountName: csi-hyperstack-controller-sa
       containers:
         - name: csi-hyperstack
-          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag }}
+          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy }}
-          command: ["csi-hyperstack"]
+          # command: ["csi-hyperstack"]
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - ls -l /csi/csi.sock
+            # initialDelaySeconds: 20
+            # periodSeconds: 10
+          # readinessProbe:
+          #   exec:
+          #     command:
+          #       - /bin/sh
+          #       - -c
+          #       - |
+          #         grpcurl -plaintext -unix /csi/csi.sock csi.v1.Identity.GetPluginInfo >/dev/null 2>&1 \
+          #         && grpcurl -plaintext -unix /csi/csi.sock csi.v1.Controller.ControllerGetCapabilities >/dev/null 2>&1
+            # initialDelaySeconds: 20
+            # periodSeconds: 10
           args:
             - "start"
             - "--endpoint=unix:///csi/csi.sock"
             - "--hyperstack-api-address={{ .Values.hyperstack.apiAddress }}"
             - "--hyperstack-api-key={{ .Values.hyperstack.apiKey }}"
-            - "--service-controller-enabled"
+            - "--service-controller-enabled=true"
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
@@ -86,23 +104,30 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-        - name: csi-resizer
-          image: {{ .Values.components.csiResizer.image }}
+        # - name: csi-resizer
+        #   image: {{ .Values.components.csiResizer.image }}
+        #   args:
+        #     - -v=5
+        #     - -csi-address=/csi/csi.sock
+        #   securityContext:
+        #     privileged: true
+        #   volumeMounts:
+        #     - mountPath: /csi
+        #       name: socket-dir
+        # - name: csi-snapshotter
+        #   image: {{ .Values.components.csiSnapshotter.image }}
+        #   args:
+        #     - -v=5
+        #     - --csi-address=/csi/csi.sock
+        #   securityContext:
+        #     privileged: true
+        #   volumeMounts:
+        #     - mountPath: /csi
+        #       name: socket-dir
+        - name: liveness-probe
+          image: {{ .Values.components.livenessProbe.image }}
           args:
-            - -v=5
-            - -csi-address=/csi/csi.sock
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - mountPath: /csi
-              name: socket-dir
-        - name: csi-snapshotter
-          image: {{ .Values.components.csiSnapshotter.image }}
-          args:
-            - -v=5
             - --csi-address=/csi/csi.sock
-          securityContext:
-            privileged: true
           volumeMounts:
             - mountPath: /csi
               name: socket-dir

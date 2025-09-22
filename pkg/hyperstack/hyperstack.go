@@ -11,12 +11,12 @@ import (
 // https://github.com/kubernetes/cloud-provider-openstack/blob/master/pkg/csi/cinder/openstack/openstack.go#L47
 type IHyperstack interface {
 	CreateVolume(ctx context.Context, name string, size int, vtype, environment string, tags map[string]string) (*volume.VolumeFields, error)
-	GetVolume(ctx context.Context, volumeID string) (*volume.VolumeFields, error)
+	GetVolume(ctx context.Context, volumeID int) (*volume.VolumeFields, error)
 	GetVolumesByName(ctx context.Context, name string) ([]volume.VolumeFields, error)
 	DeleteVolume(ctx context.Context, volumeID int) error
 	GetMetadataOpts() metadata.Opts
-	AttachVolumeToNode(ctx context.Context, virtualMachineId int, volumeID string) (*volume_attachment.AttachVolumeFields, error)
-	DetachVolumeFromNode(ctx context.Context, virtualMachineId int, volumeID string) (*volume_attachment.DetachVolumes, error)
+	AttachVolumeToNode(ctx context.Context, virtualMachineId int, volumeID int) (*volume_attachment.AttachVolumeFields, error)
+	DetachVolumeFromNode(ctx context.Context, virtualMachineId int, volumeID int) (*volume_attachment.DetachVolumes, error)
 	GetClusterDetail(ctx context.Context, clusterID int) (*clusters.ClusterFields, error)
 }
 

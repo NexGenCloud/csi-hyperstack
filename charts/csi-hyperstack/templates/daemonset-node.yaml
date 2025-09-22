@@ -22,20 +22,47 @@ spec:
       hostNetwork: true
       containers:
         - name: csi-hyperstack-node
-          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag }}
+          image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.components.csiHyperstack.imagePullPolicy}}
           securityContext:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
-          command: ["csi-hyperstack"]
+          # command: ["csi-hyperstack"]
           args:
             - "start"
             - "--endpoint=unix:///csi/csi.sock"
-            - "--hyperstack-api-address={{ .Values.hyperstack.apiKey }}"
-            - "--hyperstack-api-key={{ .Values.hyperstack.apiAddress }}"
-            - "--service-node-enabled"
+            - "--hyperstack-api-address={{ .Values.hyperstack.apiAddress }}"
+            - "--hyperstack-api-key={{ .Values.hyperstack.apiKey }}"
+            - "--service-node-enabled=true"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  grpcurl -plaintext -unix /csi/csi.sock csi.v1.Identity.GetPluginInfo >/dev/null 2>&1 \
+                  && grpcurl -plaintext -unix /csi/csi.sock csi.v1.Node.NodeGetInfo >/dev/null 2>&1
+            # initialDelaySeconds: 20
+            # periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  grpcurl -plaintext -unix /csi/csi.sock csi.v1.Identity.GetPluginInfo >/dev/null 2>&1 \
+                  && grpcurl -plaintext -unix /csi/csi.sock csi.v1.Node.NodeGetInfo >/dev/null 2>&1
+            # initialDelaySeconds: 20
+            # periodSeconds: 10
+            # timeoutSeconds: 5
+            # failureThreshold: 3
+            # successThreshold: 1
           env:
+            - name: DRIVER_NAME
+              value: "hyperstack.csi.nexgencloud.com"
+            - name: DRIVER_VERSION
+              value: "v1.0.0"
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -57,6 +84,12 @@ spec:
             - --v=5
             - --csi-address=/csi/csi.sock
             - --kubelet-registration-path=/var/lib/kubelet/plugins/hyperstack.csi.nexgencloud.com/csi.sock
+          livenessProbe:
+            exec:
+              command:
+              - /csi-node-driver-registrar
+              - --kubelet-registration-path=/var/lib/kubelet/plugins/hyperstack.csi.nexgencloud.com/csi.sock
+              - --mode=kubelet-registration-probe
           securityContext:
             privileged: true
           env:
@@ -70,6 +103,13 @@ spec:
               name: socket-dir
             - mountPath: /registration
               name: registration-dir
+        - name: liveness-probe
+          image: {{ .Values.components.livenessProbe.image }}
+          args:
+            - --csi-address=/csi/csi.sock
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
       volumes:
         - name: socket-dir
           hostPath:

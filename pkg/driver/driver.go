@@ -50,6 +50,9 @@ type Driver struct {
 	serviceController csi.ControllerServer
 	serviceNode       csi.NodeServer
 
+	readyMu sync.Mutex
+	ready   bool
+
 	cscap []*csi.ControllerServiceCapability
 	nscap []*csi.NodeServiceCapability
 	vcap  []*csi.VolumeCapability_AccessMode
@@ -72,6 +75,10 @@ func NewDriver(opts *DriverOpts) *Driver {
 			opts.HyperstackApiAddress,
 		),
 	}
+
+	d.readyMu.Lock()
+	d.ready = true
+	d.readyMu.Unlock()
 
 	d.cscap = MapControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,

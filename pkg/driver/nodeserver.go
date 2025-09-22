@@ -35,74 +35,22 @@ type nodeServer struct {
 func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("\n==============NodeStageVolume: called================\n")
 	klog.Infof("NodeStageVolume: called with args %+v", protosanitizer.StripSecrets(*req))
-	// check is symlink exists, if not create <hs_name>_<original_name> -> <original_name>
-	// hyperstackVolumeName := "pvc-00000000-0000-0000-0000-000000000000"
-	hyperstackVolumeName := req.PublishContext[volNameKeyFromControllerPublishVolume]
-	klog.Infof("NodeStageVolume: hyperstackVolumeName from publish context: %s", hyperstackVolumeName)
-	err := createSymLink(hyperstackVolumeName)
-	if err != nil {
-		return nil, err
+	devicename := req.PublishContext[volNameKeyFromControllerPublishVolume]
+	if devicename == "" {
+		return nil, status.Error(codes.InvalidArgument, "Device name not found in publish context. Please wait for volume to be attached.")
 	}
-	devicePathToMount, err := getDevicePathToMount(hyperstackVolumeName)
-	if err != nil {
-		return nil, err
-	}
-	err = formateAndMakeFS(devicePathToMount, "ext4")
+	klog.Infof("NodeStageVolume: devicename from publish context: %s", devicename)
+	err := formateAndMakeFS(devicename, "ext4")
 	if err != nil {
 		return nil, err
 	}
 
 	target := req.StagingTargetPath
-	err = mountDevice(devicePathToMount, target, "ext4", []string{})
+	err = mountDevice(devicename, target, "ext4", []string{})
 	if err != nil {
 		return nil, err
 	}
 	return &csi.NodeStageVolumeResponse{}, nil
-}
-
-func createSymLink(hyperstackVolumeName string) error {
-	klog.Infof("==============createSymLink: Creating symlink for %s================\n", hyperstackVolumeName)
-	diskPath := "/dev/disk"
-	err := os.MkdirAll(fmt.Sprintf("%s/%s", diskPath, "by-volumeid"), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directory: %v", err)
-	}
-	byVolumeIdPath := fmt.Sprintf("%s/%s", diskPath, "by-volumeid")
-	byVolumeIdSymlinks, err := os.ReadDir(byVolumeIdPath)
-
-	klog.Infof("createSymLink: Files in the by-volumeid directory: %s, %v", byVolumeIdPath, byVolumeIdSymlinks)
-	if err != nil {
-		return fmt.Errorf("createSymLink: failed to read by-volumeid directory: %v", err)
-	}
-	byVolumeIdSymlinkString := "_"
-	for _, file := range byVolumeIdSymlinks {
-		byVolumeIdSymlinkString += file.Name() + "_"
-	}
-	klog.Infof("createSymLink: byVolumeIdSymlinkString: %s", byVolumeIdSymlinkString)
-	byIdPath := fmt.Sprintf("%s/%s", diskPath, "by-id")
-	byIdSymlinks, err := os.ReadDir(byIdPath)
-	if err != nil {
-		return fmt.Errorf("createSymLink: failed to read by-id directory: %v", err)
-	}
-	klog.Infof("createSymLink: Files in the by-id directory: %s, %v", byIdPath, byIdSymlinks)
-	for _, byIdSymlink := range byIdSymlinks {
-		byIdSymlinkName := byIdSymlink.Name()
-		readlink, err := os.Readlink(fmt.Sprintf("%s/%s", byIdPath, byIdSymlinkName))
-		if err != nil {
-			return fmt.Errorf("createSymLink: failed to read link: %v", err)
-		}
-		klog.Infof("createSymLink: byIdSymlink: %s, %s", byIdSymlinkName, readlink)
-		klog.Infof("createSymLink: Check: %s, %s, %v", byIdSymlinkName, byVolumeIdSymlinkString, strings.Contains(byVolumeIdSymlinkString, byIdSymlinkName))
-		if !strings.Contains(byVolumeIdSymlinkString, byIdSymlinkName) {
-			byVolumeIdSymlinkPath := fmt.Sprintf("%s/%s/%s_%s", diskPath, "by-volumeid", byIdSymlinkName, hyperstackVolumeName)
-			klog.Infof("createSymLink: Symlink not found in the by-volumeid directory for %s and %s\nCreating symlink between [%s -> %s]", byIdSymlinkName, readlink, byVolumeIdSymlinkPath, readlink)
-			err = os.Symlink(readlink, byVolumeIdSymlinkPath)
-			if err != nil {
-				return fmt.Errorf("createSymLink: failed to create symlink: %v", err)
-			}
-		}
-	}
-	return nil
 }
 
 func formateAndMakeFS(device string, fstype string) error {
@@ -156,21 +104,6 @@ func mountDevice(source string, target string, fsType string, options []string) 
 	return nil
 }
 
-func getDevicePathToMount(hyperstackVolumeName string) (string, error) {
-	diskPath := "/dev/disk/by-volumeid"
-	byVolumeIdSymlinks, err := os.ReadDir(diskPath)
-	if err != nil {
-		return "", fmt.Errorf("error %s, reading the device path %s", err.Error(), diskPath)
-	}
-	for _, byVolumeIdSymlink := range byVolumeIdSymlinks {
-		fmt.Println(byVolumeIdSymlink.Name())
-		if strings.Contains(byVolumeIdSymlink.Name(), hyperstackVolumeName) {
-			return fmt.Sprintf("%s/%s", diskPath, byVolumeIdSymlink.Name()), nil
-		}
-	}
-	return "", fmt.Errorf("device path not found for %s", hyperstackVolumeName)
-}
-
 func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	klog.Infof("==============NodeUnstageVolume: called================\n")
 	klog.Infof("NodeUnstageVolume: called with args %+v", protosanitizer.StripSecrets(*req))
@@ -197,16 +130,10 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	klog.Infof("==============NodePublishVolume: called================\n")
 	klog.Infof("NodePublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
-	// make sure the requried fields are set and not empty
-
 	options := []string{"bind"}
 	if req.Readonly {
 		options = append(options, "ro")
 	}
-
-	// get req.VolumeCaps and make sure that you handle request for block mode as well
-	// here we are just handling request for filesystem mode
-	// in case of block mode, the source is going to be the device dir where volume was attached form ControllerPubVolume RPC
 
 	fsType := "ext4"
 	if req.VolumeCapability.GetMount().FsType != "" {
@@ -215,8 +142,6 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	source := req.StagingTargetPath
 	target := req.TargetPath
-
-	// we want to run mount -t fstype source target -o bind,ro
 
 	err := mountDevice(source, target, fsType, options)
 	if err != nil {

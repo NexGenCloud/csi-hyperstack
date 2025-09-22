@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
@@ -32,8 +31,8 @@ func (cs *controllerServer) CreateVolume(
 	ctx context.Context,
 	req *csi.CreateVolumeRequest,
 ) (*csi.CreateVolumeResponse, error) {
-	fmt.Println("==============Create volume called ==============")
-	fmt.Printf("CreateVolume: Driver opts: %#v\n", cs.driver.opts)
+	klog.Infof("==============Create volume called ==============")
+	klog.Infof("CreateVolume: Driver opts: %#v\n", cs.driver.opts)
 	if err := cs.driver.ValidateControllerServiceRequest(
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 	); err != nil {
@@ -110,7 +109,7 @@ func (cs *controllerServer) CreateVolume(
 	klog.Infof("CreateVolume: Polling for volume to be available with max attempts: %d", maxAttempts)
 	for i := 0; i < maxAttempts; i++ {
 		klog.Infof("CreateVolume: Polling for volume to be available %d/%d", i+1, maxAttempts)
-		v, err := cloud.GetVolume(ctx, strconv.Itoa(*vol.Id))
+		v, err := cloud.GetVolume(ctx, *vol.Id)
 		if err != nil {
 			klog.Errorf("CreateVolume: Failed to GetVolume while polling volume availability: %v", err)
 			return nil, status.Errorf(codes.Internal, "CreateVolume failed with error %v", err)
@@ -120,7 +119,7 @@ func (cs *controllerServer) CreateVolume(
 			time.Sleep(2 * time.Second)
 			continue
 		} else {
-			klog.Infof("CreateVolume: GetVolume attempt %d returned volume: %+v", i+1, v)
+			klog.Infof("CreateVolume: GetVolume attempt %d returned volume: %+v", i+1, protosanitizer.StripSecrets(v))
 			if *v.Status == "available" {
 				klog.Infof("CreateVolume: Volume is now available-\nID: %v\nStatus: %v\nVolume Name: %v", *v.Id, *v.Status, *v.Name)
 				vol = v
@@ -139,7 +138,12 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	klog.Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 	volumeID := req.GetVolumeId()
 	cloud := cs.driver.hyperstackClient
-	getVolume, err := cloud.GetVolume(ctx, volumeID)
+	volumeIDInt, err := strconv.Atoi(volumeID)
+	if err != nil {
+		klog.Errorf("DeleteVolume: Failed to convert volume ID to int: %v", err)
+		return nil, status.Errorf(codes.Internal, "DeleteVolume: Failed to convert volume ID to int: %v", err)
+	}
+	getVolume, err := cloud.GetVolume(ctx, volumeIDInt)
 	if err != nil {
 		klog.Errorf("DeleteVolume: Failed to GetVolume from hyperstack: %v", err)
 		return nil, status.Errorf(codes.NotFound, "DeleteVolume: Failed to GetVolume from hyperstack: %v", err)
@@ -151,11 +155,6 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	if *getVolume.Status == "in-use" {
 		klog.Errorf("DeleteVolume: Volume %s is in use", *getVolume.Name)
 		return nil, status.Errorf(codes.FailedPrecondition, "DeleteVolume: Volume %s is in use", *getVolume.Name)
-	}
-	volumeIDInt, err := strconv.Atoi(volumeID)
-	if err != nil {
-		klog.Errorf("DeleteVolume: Failed to convert volume ID to int: %v", err)
-		return nil, status.Errorf(codes.Internal, "DeleteVolume: Failed to convert volume ID to int: %v", err)
 	}
 	if *getVolume.Status == "available" {
 		klog.Infof("DeleteVolume: Volume %s is available", *getVolume.Name)
@@ -182,9 +181,14 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Errorf(codes.Internal, "Failed to convert virtual machine ID to int: %v", err)
 	}
 	volumeID := req.GetVolumeId()
-	klog.Infof("ControllerPublishVolume: VM and Volume ID while attaching volume to node: %d, %s", vmId, volumeID)
+	volumeIDInt, err := strconv.Atoi(volumeID)
+	if err != nil {
+		klog.Errorf("ControllerPublishVolume: Failed to convert volume ID to int: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to convert volume ID to int: %v", err)
+	}
+	klog.Infof("ControllerPublishVolume: VM and Volume ID while attaching volume to node: %d, %d", vmId, volumeIDInt)
 	cloud := cs.driver.hyperstackClient
-	getVolume, err := cloud.GetVolume(ctx, volumeID)
+	getVolume, err := cloud.GetVolume(ctx, volumeIDInt)
 	klog.Infof("ControllerPublishVolume: GetVolume returned volume: %+v", getVolume)
 	if err != nil {
 		klog.Errorf("ControllerPublishVolume: Failed to GetVolume from hyperstack: %v", err)
@@ -197,48 +201,24 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	klog.Infof("ControllerPublishVolume: GetVolume succeeded -\nStatus: %s\nName: %s\nID: %d\nSize:%d", *getVolume.Status, *getVolume.Name, *getVolume.Id, *getVolume.Size)
 	if *getVolume.Status == "in-use" { //Volume is already attached
 		klog.Infof("ControllerPublishVolume: Volume %s is already in use", *getVolume.Name)
-		return &csi.ControllerPublishVolumeResponse{
-			PublishContext: map[string]string{
-				volNameKeyFromControllerPublishVolume: *getVolume.Name,
-			},
-		}, nil
+		if len(*getVolume.Attachments) > 0 {
+			klog.Infof("ControllerPublishVolume: Volume %s is already attached to node %s", *getVolume.Name, *(*getVolume.Attachments)[0].InstanceId)
+			return &csi.ControllerPublishVolumeResponse{
+				PublishContext: map[string]string{
+					volNameKeyFromControllerPublishVolume: *(*getVolume.Attachments)[0].Device,
+				},
+			}, nil
+		}
 	}
 	if *getVolume.Status == "available" {
-		attachVolume, err := cloud.AttachVolumeToNode(ctx, vmId, volumeID)
+		attachVolume, err := cloud.AttachVolumeToNode(ctx, vmId, volumeIDInt)
 		if err != nil {
 			klog.Errorf("ControllerPublishVolume: Failed to AttachVolumeToNode: %v", err)
 			return nil, status.Errorf(codes.Internal, "ControllerPublishVolume: Failed to AttachVolumeToNode: %v", err)
 		}
 		klog.Infof("ControllerPublishVolume: AttachVolumeToNode succeeded -\nID: %v\nInstance id ID: %v\nStatus: %v\nVolume ID: %v", *attachVolume.Id, *attachVolume.InstanceId, *attachVolume.Status, *attachVolume.VolumeId)
-		maxAttempts := 30
-		klog.Infof("ControllerPublishVolume: Polling starting with max attempts: %d", maxAttempts)
-		for i := 0; i < maxAttempts; i++ {
-			klog.Infof("ControllerPublishVolume: Polling for volume to be attached %d/%d", i+1, maxAttempts)
-			v, err := cloud.GetVolume(ctx, volumeID)
-			klog.Infof("ControllerPublishVolume: GetVolume returned volume from polling: %+v", v)
-			if err != nil {
-				klog.Warningf("ControllerPublishVolume: GetVolume attempt %d failed: %v", i+1, err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-			if v == nil {
-				klog.Warningf("ControllerPublishVolume: GetVolume attempt %d returned nil or incomplete volume", i+1)
-				time.Sleep(2 * time.Second)
-				continue
-			} else {
-				if *v.Status == "in-use" {
-					klog.Infof("ControllerPublishVolume: Volume is now in use-\nID: %v\nStatus: %v\nVolume Name: %v", *v.Id, *v.Status, *v.Name)
-					break
-				}
-			}
-			time.Sleep(2 * time.Second)
-		}
 	}
-	return &csi.ControllerPublishVolumeResponse{
-		PublishContext: map[string]string{
-			volNameKeyFromControllerPublishVolume: *getVolume.Name,
-		},
-	}, nil
+	return &csi.ControllerPublishVolumeResponse{}, nil
 }
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
@@ -251,7 +231,12 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	}
 	volumeID := req.GetVolumeId()
 	cloud := cs.driver.hyperstackClient
-	getVolume, err := cloud.GetVolume(ctx, volumeID)
+	volumeIDInt, err := strconv.Atoi(volumeID)
+	if err != nil {
+		klog.Errorf("ControllerUnpublishVolume: Failed to convert volume ID to int: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to convert volume ID to int: %v", err)
+	}
+	getVolume, err := cloud.GetVolume(ctx, volumeIDInt)
 	klog.Infof("ControllerUnpublishVolume: GetVolume returned volume: %+v", getVolume)
 	if err != nil {
 		klog.Errorf("ControllerUnpublishVolume: Failed to GetVolume from hyperstack: %v", err)
@@ -263,7 +248,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	}
 	klog.Infof("ControllerUnpublishVolume: GetVolume succeeded -\nStatus: %s\nName: %s\nID: %d\nSize:%d", *getVolume.Status, *getVolume.Name, *getVolume.Id, *getVolume.Size)
 	if *getVolume.Status == "in-use" {
-		detachVolume, err := cloud.DetachVolumeFromNode(ctx, vmId, volumeID)
+		detachVolume, err := cloud.DetachVolumeFromNode(ctx, vmId, volumeIDInt)
 		if err != nil {
 			klog.Errorf("ControllerUnpublishVolume: Failed to DetachVolumeFromNode: %v", err)
 			return nil, status.Errorf(codes.Internal, "ControllerUnpublishVolume: Failed to DetachVolumeFromNode: %v", err)
@@ -275,25 +260,25 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	klog.Infof("ListVolumes: called with %+#v request", req)
-	klog.Warning("DeleteVolume: Not implemented yet!")
+	klog.Warning("ListVolumes: Not implemented yet!")
 	return &csi.ListVolumesResponse{}, nil
 }
 
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	klog.Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(*req))
-	klog.Warning("DeleteVolume: Not implemented yet!")
+	klog.Warning("CreateSnapshot: Not implemented yet!")
 	return &csi.CreateSnapshotResponse{}, nil
 }
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	klog.Infof("DeleteSnapshot: called with args %+v", protosanitizer.StripSecrets(*req))
-	klog.Warning("DeleteVolume: Not implemented yet!")
+	klog.Warning("DeleteSnapshot: Not implemented yet!")
 	return &csi.DeleteSnapshotResponse{}, nil
 }
 
 func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	// TODO(joseb)
-	klog.Warning("DeleteVolume: Not implemented yet!")
+	klog.Warning("ListSnapshots: Not implemented yet!")
 	return &csi.ListSnapshotsResponse{}, nil
 }
 
@@ -332,7 +317,12 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 		return nil, status.Error(codes.InvalidArgument, "ValidateVolumeCapabilities Volume ID must be provided")
 	}
 
-	_, err := cs.driver.hyperstackClient.GetVolume(ctx, volumeID)
+	volumeIDInt, err := strconv.Atoi(volumeID)
+	if err != nil {
+		klog.Errorf("ValidateVolumeCapabilities: Failed to convert volume ID to int: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to convert volume ID to int: %v", err)
+	}
+	_, err = cs.driver.hyperstackClient.GetVolume(ctx, volumeIDInt)
 	if err != nil {
 		// if cpoerrors.IsNotFound(err) {
 		// 	return nil, status.Errorf(codes.NotFound, "ValidateVolumeCapabilities Volume %s not found", volumeID)
@@ -371,13 +361,13 @@ func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.Co
 
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	klog.Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(*req))
-	klog.Warning("DeleteVolume: Not implemented yet!")
+	klog.Warning("ControllerExpandVolume: Not implemented yet!")
 	return &csi.ControllerExpandVolumeResponse{}, nil
 }
 
 func (cs *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	klog.Infof("ControllerModifyVolume: called with args %+v", protosanitizer.StripSecrets(*req))
-	klog.Warning("ModifyVolume: Not implemented yet!")
+	klog.Warning("ControllerModifyVolume: Not implemented yet!")
 	return &csi.ControllerModifyVolumeResponse{}, nil
 }
 
