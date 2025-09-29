@@ -55,9 +55,21 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 func formateAndMakeFS(device string, fstype string) error {
 	klog.Infof("formateAndMakeFS: called with args %s, %s", device, fstype)
+
+	// Check if filesystem already exists
+	blkidCmd := exec.Command("blkid", "-o", "value", "-s", "TYPE", device)
+	output, err := blkidCmd.CombinedOutput()
+	existingFS := strings.TrimSpace(string(output))
+
+	if err == nil && existingFS != "" {
+		klog.Infof("Filesystem %s already exists on %s, skipping format", existingFS, device)
+		return nil // Don't format if filesystem exists
+	}
+
+	// Only format if no filesystem exists
 	mkfsCmd := fmt.Sprintf("mkfs.%s", fstype)
 
-	_, err := exec.LookPath(mkfsCmd)
+	_, err = exec.LookPath(mkfsCmd)
 	if err != nil {
 		return fmt.Errorf("unable to find the mkfs (%s) utiltiy errors is %s", mkfsCmd, err.Error())
 	}
