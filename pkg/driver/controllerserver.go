@@ -340,7 +340,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 		}
 		return nil, status.Error(codes.DeadlineExceeded, "ControllerUnpublishVolume: Timeout waiting for volume to detach")
 	}
-	return &csi.ControllerUnpublishVolumeResponse{}, nil
+	return nil, status.Errorf(codes.Internal, "ControllerPublishVolume: Volume in unexpected state: %s", *getVolume.Status)
 }
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
