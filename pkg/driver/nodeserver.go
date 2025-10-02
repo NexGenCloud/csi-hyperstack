@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
@@ -56,20 +57,69 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 func formateAndMakeFS(device string, fstype string) error {
 	klog.Infof("formateAndMakeFS: called with args %s, %s", device, fstype)
 
-	// Check if filesystem already exists
-	blkidCmd := exec.Command("blkid", "-o", "value", "-s", "TYPE", device)
-	output, err := blkidCmd.CombinedOutput()
-	existingFS := strings.TrimSpace(string(output))
+	// Wait for device to be ready and check if filesystem exists
+	// This prevents race condition where device is attached but not yet accessible
+	const maxRetries = 10
+	const retryDelay = 500 * time.Millisecond
 
-	if err == nil && existingFS != "" {
+	var existingFS string
+	var deviceReady bool
+
+	for i := 0; i < maxRetries; i++ {
+		// Check if device file exists
+		if _, err := os.Stat(device); err != nil {
+			if i < maxRetries-1 {
+				klog.Infof("Device %s not ready (attempt %d/%d), waiting...", device, i+1, maxRetries)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return fmt.Errorf("device %s not found after %d attempts: %v", device, maxRetries, err)
+		}
+
+		// Try to read filesystem type with blkid
+		blkidCmd := exec.Command("blkid", "-o", "value", "-s", "TYPE", device)
+		output, err := blkidCmd.CombinedOutput()
+		existingFS = strings.TrimSpace(string(output))
+
+		if err == nil {
+			// blkid succeeded - filesystem exists
+			deviceReady = true
+			break
+		}
+
+		// Check if error indicates device is not ready (vs no filesystem)
+		exitErr, ok := err.(*exec.ExitError)
+		if ok && exitErr.ExitCode() == 2 {
+			// Exit code 2 means no filesystem found - device is ready but empty
+			deviceReady = true
+			break
+		}
+
+		// Other errors might indicate device not ready
+		if i < maxRetries-1 {
+			klog.Infof("Device %s not ready for blkid (attempt %d/%d): %v, waiting...", device, i+1, maxRetries, err)
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		return fmt.Errorf("device %s not ready after %d attempts: %v", device, maxRetries, err)
+	}
+
+	if !deviceReady {
+		return fmt.Errorf("device %s did not become ready", device)
+	}
+
+	if existingFS != "" {
 		klog.Infof("Filesystem %s already exists on %s, skipping format", existingFS, device)
 		return nil // Don't format if filesystem exists
 	}
 
+	klog.Infof("No filesystem detected on %s, creating %s filesystem", device, fstype)
+
 	// Only format if no filesystem exists
 	mkfsCmd := fmt.Sprintf("mkfs.%s", fstype)
 
-	_, err = exec.LookPath(mkfsCmd)
+	_, err := exec.LookPath(mkfsCmd)
 	if err != nil {
 		return fmt.Errorf("unable to find the mkfs (%s) utiltiy errors is %s", mkfsCmd, err.Error())
 	}
