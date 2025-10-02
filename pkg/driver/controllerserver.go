@@ -280,7 +280,10 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		}
 		return nil, status.Error(codes.DeadlineExceeded, "ControllerPublishVolume: Timeout waiting for attachment to complete")
 	}
-	return &csi.ControllerPublishVolumeResponse{}, nil
+
+	klog.Errorf("ControllerPublishVolume: Volume %s in unexpected state: %s", *getVolume.Name, *getVolume.Status)
+	return nil, status.Errorf(codes.FailedPrecondition,
+		"Volume in unexpected state: %s (expected 'available' or 'in-use')", *getVolume.Status)
 }
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
