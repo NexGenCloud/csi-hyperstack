@@ -199,15 +199,46 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Errorf(codes.NotFound, "ControllerPublishVolume: GetVolume returned nil volume")
 	}
 	klog.Infof("ControllerPublishVolume: GetVolume succeeded -\nStatus: %s\nName: %s\nID: %d\nSize:%d", *getVolume.Status, *getVolume.Name, *getVolume.Id, *getVolume.Size)
-	if *getVolume.Status == "in-use" { //Volume is already attached
+	if *getVolume.Status == "in-use" {
 		klog.Infof("ControllerPublishVolume: Volume %s is already in use", *getVolume.Name)
 		if len(*getVolume.Attachments) > 0 {
-			klog.Infof("ControllerPublishVolume: Volume %s is already attached to node %s", *getVolume.Name, *(*getVolume.Attachments)[0].InstanceId)
-			return &csi.ControllerPublishVolumeResponse{
-				PublishContext: map[string]string{
-					volNameKeyFromControllerPublishVolume: *(*getVolume.Attachments)[0].Device,
-				},
-			}, nil
+			attachedInstanceIdStr := *(*getVolume.Attachments)[0].InstanceId
+			attachedInstanceId, err := strconv.Atoi(attachedInstanceIdStr)
+			if err != nil {
+				klog.Errorf("ControllerPublishVolume: Failed to convert attached instance ID to int: %v", err)
+				return nil, status.Errorf(codes.Internal, "Failed to convert attached instance ID to int: %v", err)
+			}
+			klog.Infof("ControllerPublishVolume: Volume %s is already attached to node %d", *getVolume.Name, attachedInstanceId)
+			if attachedInstanceId == vmId {
+				return &csi.ControllerPublishVolumeResponse{
+					PublishContext: map[string]string{
+						volNameKeyFromControllerPublishVolume: *(*getVolume.Attachments)[0].Device,
+					},
+				}, nil
+			}
+			klog.Infof("ControllerPublishVolume: Volume attached to wrong node (attached: %d, requested: %d), detaching", attachedInstanceId, vmId)
+			_, err = cloud.DetachVolumeFromNode(ctx, attachedInstanceId, volumeIDInt)
+			if err != nil {
+				klog.Errorf("ControllerPublishVolume: Failed to detach from wrong node: %v", err)
+				return nil, status.Errorf(codes.Internal, "ControllerPublishVolume: Failed to detach from wrong node: %v", err)
+			}
+			maxAttempts := 30
+			for i := 0; i < maxAttempts; i++ {
+				v, err := cloud.GetVolume(ctx, volumeIDInt)
+				if err != nil || v == nil {
+					time.Sleep(2 * time.Second)
+					continue
+				}
+				if *v.Status == "available" {
+					klog.Infof("ControllerPublishVolume: Volume detached from wrong node, now available")
+					getVolume = v
+					break
+				}
+				time.Sleep(2 * time.Second)
+			}
+			if *getVolume.Status != "available" {
+				return nil, status.Error(codes.DeadlineExceeded, "ControllerPublishVolume: Timeout waiting for detachment from wrong node")
+			}
 		}
 	}
 	if *getVolume.Status == "available" {
@@ -217,6 +248,37 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 			return nil, status.Errorf(codes.Internal, "ControllerPublishVolume: Failed to AttachVolumeToNode: %v", err)
 		}
 		klog.Infof("ControllerPublishVolume: AttachVolumeToNode succeeded -\nID: %v\nInstance id ID: %v\nStatus: %v\nVolume ID: %v", *attachVolume.Id, *attachVolume.InstanceId, *attachVolume.Status, *attachVolume.VolumeId)
+
+		maxAttempts := 30
+		klog.Infof("ControllerPublishVolume: Polling for attachment to complete with max attempts: %d", maxAttempts)
+		for i := 0; i < maxAttempts; i++ {
+			klog.Infof("ControllerPublishVolume: Polling for attachment %d/%d", i+1, maxAttempts)
+			v, err := cloud.GetVolume(ctx, volumeIDInt)
+			if err != nil {
+				klog.Errorf("ControllerPublishVolume: Failed to GetVolume while polling: %v", err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			if v == nil {
+				klog.Warningf("ControllerPublishVolume: GetVolume attempt %d returned nil volume", i+1)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			if *v.Status == "in-use" && len(*v.Attachments) > 0 {
+				attachment := (*v.Attachments)[0]
+				attachedId, err := strconv.Atoi(*attachment.InstanceId)
+				if err == nil && attachedId == vmId && attachment.Device != nil {
+					klog.Infof("ControllerPublishVolume: Volume attached to correct node with device %s", *attachment.Device)
+					return &csi.ControllerPublishVolumeResponse{
+						PublishContext: map[string]string{
+							volNameKeyFromControllerPublishVolume: *attachment.Device,
+						},
+					}, nil
+				}
+			}
+			time.Sleep(2 * time.Second)
+		}
+		return nil, status.Error(codes.DeadlineExceeded, "ControllerPublishVolume: Timeout waiting for attachment to complete")
 	}
 	return &csi.ControllerPublishVolumeResponse{}, nil
 }
@@ -254,6 +316,29 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 			return nil, status.Errorf(codes.Internal, "ControllerUnpublishVolume: Failed to DetachVolumeFromNode: %v", err)
 		}
 		klog.Infof("ControllerUnpublishVolume: DetachVolumeFromNode succeeded -\nMessage: %v\nStatus: %v\nVolume Attachments: %v", *detachVolume.Message, *detachVolume.Status, *detachVolume.VolumeAttachments)
+
+		maxAttempts := 30
+		klog.Infof("ControllerUnpublishVolume: Polling for volume to become available with max attempts: %d", maxAttempts)
+		for i := 0; i < maxAttempts; i++ {
+			klog.Infof("ControllerUnpublishVolume: Polling for volume to become available %d/%d", i+1, maxAttempts)
+			v, err := cloud.GetVolume(ctx, volumeIDInt)
+			if err != nil {
+				klog.Errorf("ControllerUnpublishVolume: Failed to GetVolume while polling: %v", err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			if v == nil {
+				klog.Warningf("ControllerUnpublishVolume: GetVolume attempt %d returned nil volume", i+1)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			if *v.Status == "available" {
+				klog.Infof("ControllerUnpublishVolume: Volume is now available after detachment")
+				return &csi.ControllerUnpublishVolumeResponse{}, nil
+			}
+			time.Sleep(2 * time.Second)
+		}
+		return nil, status.Error(codes.DeadlineExceeded, "ControllerUnpublishVolume: Timeout waiting for volume to detach")
 	}
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
