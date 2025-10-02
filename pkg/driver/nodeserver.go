@@ -119,8 +119,7 @@ func formateAndMakeFS(device string, fstype string) error {
 	// Only format if no filesystem exists
 	mkfsCmd := fmt.Sprintf("mkfs.%s", fstype)
 
-	_, err := exec.LookPath(mkfsCmd)
-	if err != nil {
+	if _, err := exec.LookPath(mkfsCmd); err != nil {
 		return fmt.Errorf("unable to find the mkfs (%s) utiltiy errors is %s", mkfsCmd, err.Error())
 	}
 
