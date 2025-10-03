@@ -202,8 +202,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	if *getVolume.Status == "in-use" {
 		klog.Infof("ControllerPublishVolume: Volume %s is already in use", *getVolume.Name)
 		if len(*getVolume.Attachments) > 0 {
-			attachedInstanceIdStr := *(*getVolume.Attachments)[0].InstanceId
-			attachedInstanceId, err := strconv.Atoi(attachedInstanceIdStr)
+			attachedInstanceId := *(*getVolume.Attachments)[0].InstanceId
 			if err != nil {
 				klog.Errorf("ControllerPublishVolume: Failed to convert attached instance ID to int: %v", err)
 				return nil, status.Errorf(codes.Internal, "Failed to convert attached instance ID to int: %v", err)
@@ -266,8 +265,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 			}
 			if *v.Status == "in-use" && len(*v.Attachments) > 0 {
 				attachment := (*v.Attachments)[0]
-				attachedId, err := strconv.Atoi(*attachment.InstanceId)
-				if err == nil && attachedId == vmId && attachment.Device != nil {
+				if err == nil && *attachVolume.Id == vmId && attachment.Device != nil {
 					klog.Infof("ControllerPublishVolume: Volume attached to correct node with device %s", *attachment.Device)
 					return &csi.ControllerPublishVolumeResponse{
 						PublishContext: map[string]string{
