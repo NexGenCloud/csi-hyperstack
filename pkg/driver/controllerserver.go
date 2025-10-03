@@ -285,22 +285,8 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 // ControllerGetCapabilities implements the default GRPC callout.
 // Default supports all capabilities
 func (cs *controllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
-	caps := cs.driver.cscap
-	for _, cap := range []csi.ControllerServiceCapability_RPC_Type{
-		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
-	} {
-		klog.Infof("ControllerGetCapabilities: %v", cap)
-		caps = append(caps, &csi.ControllerServiceCapability{
-			Type: &csi.ControllerServiceCapability_Rpc{
-				Rpc: &csi.ControllerServiceCapability_RPC{
-					Type: cap,
-				},
-			},
-		})
-	}
 	return &csi.ControllerGetCapabilitiesResponse{
-		Capabilities: caps,
+		Capabilities: cs.driver.cscap,
 	}, nil
 }
 

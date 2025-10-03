@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/NexGenCloud/hyperstack-sdk-go v1.41.0-alpha
 	github.com/container-storage-interface/spec v1.9.0
+	github.com/golang/protobuf v1.5.4
 	github.com/kubernetes-csi/csi-lib-utils v0.17.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.19.0
@@ -34,7 +35,6 @@ require (
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -89,5 +89,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/NexGenCloud/hyperstack-sdk-go => ./pkg/hyperstack/hyperstack-sdk-go

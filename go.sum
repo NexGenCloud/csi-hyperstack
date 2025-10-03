@@ -1,3 +1,5 @@
+github.com/NexGenCloud/hyperstack-sdk-go v1.41.0-alpha h1:2YPzgffiqmmvnebcsMzWgOqgv2+BT4LmWbEYHHvkTpE=
+github.com/NexGenCloud/hyperstack-sdk-go v1.41.0-alpha/go.mod h1:BJezCpOGG8z1/k5IcWzlnFk1wrd9/CrdaxD0vMQkDeM=
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
