@@ -16,4 +16,4 @@ docker-push: docker-build
 
 .PHONY: docker-build-push
 docker-build-push:
-	docker build -t $(IMAGE):$(TAG) --build-arg VERSION=$(VERSION) . --push
+	docker build -t $(IMAGE):$(TAG) --build-arg VERSION=$(VERSION) --platform=linux/amd64 . --push
