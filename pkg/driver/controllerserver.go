@@ -10,6 +10,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/csi-hyperstack/pkg/metrics"
 	util "k8s.io/csi-hyperstack/pkg/utils"
 	kubernetes "k8s.io/csi-hyperstack/pkg/utils/kubernetes"
 	"k8s.io/csi-hyperstack/pkg/utils/metadata"
@@ -167,7 +168,9 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
+func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (resp *csi.ControllerPublishVolumeResponse, err error) {
+	mc := metrics.NewMetricContext("volume", "attach")
+	defer func() { mc.ObserveCSIOperation(err) }()
 	klog.Infof("\n==============ControllerPublishVolume: called================\n")
 	klog.Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
@@ -284,7 +287,9 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		"Volume in unexpected state: %s (expected 'available' or 'in-use')", *getVolume.Status)
 }
 
-func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (resp *csi.ControllerUnpublishVolumeResponse, err error) {
+	mc := metrics.NewMetricContext("volume", "detach")
+	defer func() { mc.ObserveCSIOperation(err) }()
 	klog.Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 	virtualMachineId := req.NodeId
 	vmId, err := strconv.Atoi(virtualMachineId)

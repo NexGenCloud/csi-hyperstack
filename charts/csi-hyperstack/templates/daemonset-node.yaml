@@ -13,6 +13,7 @@ spec:
     metadata:
       labels:
         {{- include "csi-hyperstack.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: node
     spec:
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -58,6 +59,10 @@ spec:
             # timeoutSeconds: 5
             # failureThreshold: 3
             # successThreshold: 1
+          ports:
+            - containerPort: 8080
+              name: metrics
+              protocol: TCP
           env:
             - name: DRIVER_NAME
               value: "hyperstack.csi.nexgencloud.com"

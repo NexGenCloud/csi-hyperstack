@@ -45,6 +45,7 @@ func (mc *MetricContext) Observe(om *OpenstackMetrics, err error) error {
 
 func RegisterMetrics(component string) {
 	doRegisterAPIMetrics()
+	doRegisterCSIMetrics()
 	if component == "occm" {
 		doRegisterOccmMetrics()
 	}

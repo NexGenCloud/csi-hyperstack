@@ -1,0 +1,271 @@
+{
+  "title": "Hyperstack CSI Dashboard",
+  "uid": "csi-hyperstack",
+  "tags": ["storage", "hyperstack"],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "auto",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "pluginId": "prometheus",
+        "query": "prometheus",
+        "label": "Datasource",
+        "hide": 0,
+        "refresh": 1,
+        "current": {
+          "selected": false,
+          "text": "default",
+          "value": "default"
+        }
+      },
+      {
+        "name": "storageclass",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "label": "Storage Class",
+        "query": "label_values(kube_storageclass_info{provisioner=\"hyperstack.csi.nexgencloud.com\"}, storageclass)",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "multi": false,
+        "includeAll": true,
+        "allValue": ".*"
+      },
+      {
+        "name": "csi_namespace",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "label": "Driver Namespace",
+        "query": "label_values(csi_operations_total, namespace)",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "multi": false,
+        "includeAll": true,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Operation Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(csi_operations_total{namespace=~\"$csi_namespace\"}[5m])",
+          "legendFormat": "{{operation}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(csi_operation_errors_total{namespace=~\"$csi_namespace\"}[5m])",
+          "legendFormat": "{{operation}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Operation Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (operation, le) (rate(csi_operation_duration_seconds_bucket{namespace=~\"$csi_namespace\"}[5m])))",
+          "legendFormat": "p50 {{operation}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (operation, le) (rate(csi_operation_duration_seconds_bucket{namespace=~\"$csi_namespace\"}[5m])))",
+          "legendFormat": "p95 {{operation}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (operation, le) (rate(csi_operation_duration_seconds_bucket{namespace=~\"$csi_namespace\"}[5m])))",
+          "legendFormat": "p99 {{operation}}",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Volume Attachments",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "csi_volume_attachments_total{namespace=~\"$csi_namespace\"}",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "PVC Usage",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "bytes",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "#EAB839", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Usage" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 100 },
+              { "id": "custom.cellOptions", "value": { "mode": "lcd", "type": "gauge" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              { "id": "unit", "value": "none" },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "1": { "text": "Attached", "color": "green", "index": 0 }, "0": { "text": "Detached", "color": "orange", "index": 1 } } }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "PVC" }, "properties": [{ "id": "custom.minWidth", "value": 220 }] },
+          { "matcher": { "id": "byName", "options": "Volume" }, "properties": [{ "id": "custom.minWidth", "value": 280 }] }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [{ "desc": true, "displayName": "Usage" }],
+        "footer": { "show": false }
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": ["namespace", "persistentvolumeclaim", "storageclass", "volumename", "Value"]
+            }
+          }
+        },
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "namespace": "Namespace",
+              "persistentvolumeclaim": "PVC",
+              "volumename": "Volume",
+              "storageclass": "Storage Class",
+              "Value #status": "Status",
+              "Value #capacity": "Capacity",
+              "Value #used": "Used",
+              "Value #pct": "Usage"
+            },
+            "indexByName": {
+              "namespace": 0,
+              "persistentvolumeclaim": 1,
+              "volumename": 2,
+              "storageclass": 3,
+              "Value #status": 4,
+              "Value #capacity": 5,
+              "Value #used": 6,
+              "Value #pct": 7
+            },
+            "excludeByName": {}
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "status",
+          "expr": "((kube_persistentvolumeclaim_info{storageclass=~\"$storageclass\"} * 0 + 1) * on(namespace,persistentvolumeclaim) group_left() clamp_max(count(kubelet_volume_stats_capacity_bytes) by (namespace,persistentvolumeclaim), 1)) or ((kube_persistentvolumeclaim_info{storageclass=~\"$storageclass\"} unless on(namespace,persistentvolumeclaim) kubelet_volume_stats_capacity_bytes) * 0)",
+          "instant": true,
+          "format": "table",
+          "legendFormat": ""
+        },
+        {
+          "refId": "capacity",
+          "expr": "kubelet_volume_stats_capacity_bytes * on(namespace,persistentvolumeclaim) group_left(volumename,storageclass) kube_persistentvolumeclaim_info{storageclass=~\"$storageclass\"}",
+          "instant": true,
+          "format": "table",
+          "legendFormat": ""
+        },
+        {
+          "refId": "used",
+          "expr": "kubelet_volume_stats_used_bytes * on(namespace,persistentvolumeclaim) group_left(volumename,storageclass) kube_persistentvolumeclaim_info{storageclass=~\"$storageclass\"}",
+          "instant": true,
+          "format": "table",
+          "legendFormat": ""
+        },
+        {
+          "refId": "pct",
+          "expr": "(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * on(namespace,persistentvolumeclaim) group_left(volumename,storageclass) kube_persistentvolumeclaim_info{storageclass=~\"$storageclass\"} * 100",
+          "instant": true,
+          "format": "table",
+          "legendFormat": ""
+        }
+      ]
+    }
+  ]
+}
