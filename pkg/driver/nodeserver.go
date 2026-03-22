@@ -67,10 +67,10 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			if err := os.Chown(target, -1, gid); err != nil {
 				return nil, fmt.Errorf("failed to chown staging path %s to gid %d: %w", target, gid, err)
 			}
-			if err := os.Chmod(target, 0775); err != nil {
+			if err := os.Chmod(target, 0775|os.ModeSetgid); err != nil {
 				return nil, fmt.Errorf("failed to chmod staging path %s: %w", target, err)
 			}
-			klog.Infof("NodeStageVolume: set group %d and mode 0775 on %s", gid, target)
+			klog.Infof("NodeStageVolume: set group %d and mode 02775 (setgid) on %s", gid, target)
 		}
 	}
 
@@ -243,10 +243,10 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			if err := os.Chown(source, -1, gid); err != nil {
 				return nil, status.Errorf(codes.Internal, "failed to chown staging path %s to gid %d: %v", source, gid, err)
 			}
-			if err := os.Chmod(source, 0775); err != nil {
+			if err := os.Chmod(source, 0775|os.ModeSetgid); err != nil {
 				return nil, status.Errorf(codes.Internal, "failed to chmod staging path %s: %v", source, err)
 			}
-			klog.Infof("NodePublishVolume: set group %d and mode 0775 on %s", gid, source)
+			klog.Infof("NodePublishVolume: set group %d and mode 02775 (setgid) on %s", gid, source)
 		}
 	}
 
