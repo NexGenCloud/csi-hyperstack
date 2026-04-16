@@ -14,6 +14,7 @@ spec:
     metadata:
       labels:
         {{- include "csi-hyperstack.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
     spec:
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -72,7 +73,7 @@ spec:
             runAsGroup: 0
           ports:
             - containerPort: 8080
-              name: auth
+              name: metrics
               protocol: TCP
           volumeMounts:
             - mountPath: /csi

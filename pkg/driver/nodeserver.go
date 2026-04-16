@@ -17,6 +17,7 @@ import (
 	"k8s.io/klog/v2"
 
 	// cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
+	"k8s.io/csi-hyperstack/pkg/metrics"
 	kubernetes "k8s.io/csi-hyperstack/pkg/utils/kubernetes"
 	"k8s.io/csi-hyperstack/pkg/utils/metadata"
 	"k8s.io/csi-hyperstack/pkg/utils/mount"
@@ -33,7 +34,9 @@ type nodeServer struct {
 	csi.UnimplementedNodeServer
 }
 
-func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
+func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (resp *csi.NodeStageVolumeResponse, err error) {
+	mc := metrics.NewMetricContext("volume", "node_stage")
+	defer func() { mc.ObserveCSIOperation(err) }()
 	klog.Infof("\n==============NodeStageVolume: called================\n")
 	klog.Infof("NodeStageVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 	devicename := req.PublishContext[volNameKeyFromControllerPublishVolume]
@@ -41,7 +44,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		return nil, status.Error(codes.InvalidArgument, "Device name not found in publish context. Please wait for volume to be attached.")
 	}
 	klog.Infof("NodeStageVolume: devicename from publish context: %s", devicename)
-	err := formateAndMakeFS(devicename, "ext4")
+	err = formateAndMakeFS(devicename, "ext4")
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +168,9 @@ func mountDevice(source string, target string, fsType string, options []string) 
 	return nil
 }
 
-func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (resp *csi.NodeUnstageVolumeResponse, err error) {
+	mc := metrics.NewMetricContext("volume", "node_unstage")
+	defer func() { mc.ObserveCSIOperation(err) }()
 	klog.Infof("==============NodeUnstageVolume: called================\n")
 	klog.Infof("NodeUnstageVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
@@ -179,7 +184,7 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 		return nil, status.Error(codes.InvalidArgument, "NodeUnstageVolume Staging Target Path must be provided")
 	}
 
-	err := ns.mount.UnmountPath(stagingTargetPath)
+	err = ns.mount.UnmountPath(stagingTargetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Unmount of targetPath %s failed with error %v", stagingTargetPath, err)
 	}
@@ -187,7 +192,9 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
-func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (resp *csi.NodePublishVolumeResponse, err error) {
+	mc := metrics.NewMetricContext("volume", "node_publish")
+	defer func() { mc.ObserveCSIOperation(err) }()
 	klog.Infof("==============NodePublishVolume: called================\n")
 	klog.Infof("NodePublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
@@ -204,15 +211,20 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	source := req.StagingTargetPath
 	target := req.TargetPath
 
-	err := mountDevice(source, target, fsType, options)
+	err = mountDevice(source, target, fsType, options)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Error %s, mounting the volume from staging dir to target dir", err.Error()))
 	}
 
+	nodeID, _ := ns.metadata.GetHyperstackVMId()
+	metrics.VolumeAttachmentsGauge.WithLabelValues(nodeID).Inc()
+
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (resp *csi.NodeUnpublishVolumeResponse, err error) {
+	mc := metrics.NewMetricContext("volume", "node_unpublish")
+	defer func() { mc.ObserveCSIOperation(err) }()
 	klog.Infof("NodeUnPublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	volumeID := req.GetVolumeId()
@@ -224,9 +236,12 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.InvalidArgument, "[NodeUnpublishVolume] volumeID must be provided")
 	}
 
-	if err := ns.mount.UnmountPath(targetPath); err != nil {
+	if err = ns.mount.UnmountPath(targetPath); err != nil {
 		return nil, status.Errorf(codes.Internal, "Unmount of targetpath %s failed with error %v", targetPath, err)
 	}
+
+	nodeID, _ := ns.metadata.GetHyperstackVMId()
+	metrics.VolumeAttachmentsGauge.WithLabelValues(nodeID).Dec()
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 
@@ -259,7 +274,37 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 
 func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
 	klog.Infof("NodeGetVolumeStats: called with args %+v", protosanitizer.StripSecrets(*req))
-	return &csi.NodeGetVolumeStatsResponse{}, nil
+
+	if req.VolumePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "NodeGetVolumeStats: volume path must be provided")
+	}
+
+	stats, err := ns.mount.GetDeviceStats(req.VolumePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, status.Errorf(codes.NotFound, "NodeGetVolumeStats: volume path %s not found: %v", req.VolumePath, err)
+		}
+		return nil, status.Errorf(codes.Internal, "NodeGetVolumeStats: failed to get stats for %s: %v", req.VolumePath, err)
+	}
+
+	usage := []*csi.VolumeUsage{
+		{
+			Unit:      csi.VolumeUsage_BYTES,
+			Available: stats.AvailableBytes,
+			Total:     stats.TotalBytes,
+			Used:      stats.UsedBytes,
+		},
+	}
+	if !stats.Block {
+		usage = append(usage, &csi.VolumeUsage{
+			Unit:      csi.VolumeUsage_INODES,
+			Available: stats.AvailableInodes,
+			Total:     stats.TotalInodes,
+			Used:      stats.UsedInodes,
+		})
+	}
+
+	return &csi.NodeGetVolumeStatsResponse{Usage: usage}, nil
 }
 
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {

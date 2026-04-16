@@ -24,3 +24,17 @@ storageClass:
   name: "csi-hyperstack"
   volumeBindingMode: "Immediate"
   reclaimPolicy: "Delete"
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: ""
+    scrapeTimeout: ""
+    labels: {}
+
+  dashboards:
+    enabled: false
+    namespace: ""
+    labels:
+      grafana_dashboard: "1"
