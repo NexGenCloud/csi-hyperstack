@@ -62,13 +62,13 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		if volumeMountGroup := mountVolume.GetVolumeMountGroup(); volumeMountGroup != "" {
 			gid, err := strconv.Atoi(volumeMountGroup)
 			if err != nil {
-				return nil, fmt.Errorf("invalid volume_mount_group %q: %w", volumeMountGroup, err)
+				return nil, status.Errorf(codes.InvalidArgument, "invalid volume_mount_group %q: %v", volumeMountGroup, err)
 			}
 			if err := os.Chown(target, -1, gid); err != nil {
-				return nil, fmt.Errorf("failed to chown staging path %s to gid %d: %w", target, gid, err)
+				return nil, status.Errorf(codes.Internal, "failed to chown staging path %s to gid %d: %v", target, gid, err)
 			}
 			if err := os.Chmod(target, 0775|os.ModeSetgid); err != nil {
-				return nil, fmt.Errorf("failed to chmod staging path %s: %w", target, err)
+				return nil, status.Errorf(codes.Internal, "failed to chmod staging path %s: %v", target, err)
 			}
 			klog.Infof("NodeStageVolume: set group %d and mode 02775 (setgid) on %s", gid, target)
 		}
@@ -238,7 +238,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		if volumeMountGroup := mountVolume.GetVolumeMountGroup(); volumeMountGroup != "" {
 			gid, err := strconv.Atoi(volumeMountGroup)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "invalid volume_mount_group %q: %v", volumeMountGroup, err)
+				return nil, status.Errorf(codes.InvalidArgument, "invalid volume_mount_group %q: %v", volumeMountGroup, err)
 			}
 			if err := os.Chown(source, -1, gid); err != nil {
 				return nil, status.Errorf(codes.Internal, "failed to chown staging path %s to gid %d: %v", source, gid, err)
