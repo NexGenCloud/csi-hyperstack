@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +55,25 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	if err != nil {
 		return nil, err
 	}
+
+	// Apply fsGroup ownership if provided via VOLUME_MOUNT_GROUP capability.
+	// Sets group on the root inode so non-root pods with matching fsGroup can write.
+	if mountVolume := req.VolumeCapability.GetMount(); mountVolume != nil {
+		if volumeMountGroup := mountVolume.GetVolumeMountGroup(); volumeMountGroup != "" {
+			gid, err := strconv.Atoi(volumeMountGroup)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid volume_mount_group %q: %v", volumeMountGroup, err)
+			}
+			if err := os.Chown(target, -1, gid); err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to chown staging path %s to gid %d: %v", target, gid, err)
+			}
+			if err := os.Chmod(target, 0775|os.ModeSetgid); err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to chmod staging path %s: %v", target, err)
+			}
+			klog.Infof("NodeStageVolume: set group %d and mode 02775 (setgid) on %s", gid, target)
+		}
+	}
+
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 
@@ -210,6 +230,25 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	source := req.StagingTargetPath
 	target := req.TargetPath
+
+	// Apply fsGroup ownership on the staging path before bind-mounting.
+	// This runs on every publish so permissions are correct even if the volume
+	// was staged before the driver was upgraded.
+	if mountVolume := req.VolumeCapability.GetMount(); mountVolume != nil {
+		if volumeMountGroup := mountVolume.GetVolumeMountGroup(); volumeMountGroup != "" {
+			gid, err := strconv.Atoi(volumeMountGroup)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid volume_mount_group %q: %v", volumeMountGroup, err)
+			}
+			if err := os.Chown(source, -1, gid); err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to chown staging path %s to gid %d: %v", source, gid, err)
+			}
+			if err := os.Chmod(source, 0775|os.ModeSetgid); err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to chmod staging path %s: %v", source, err)
+			}
+			klog.Infof("NodePublishVolume: set group %d and mode 02775 (setgid) on %s", gid, source)
+		}
+	}
 
 	err = mountDevice(source, target, fsType, options)
 	if err != nil {
