@@ -9,4 +9,4 @@ metadata:
 spec:
   volumeLifecycleModes:
     - Persistent
-  fsGroupPolicy: None
+  fsGroupPolicy: File

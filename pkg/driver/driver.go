@@ -92,6 +92,7 @@ func NewDriver(opts *DriverOpts) *Driver {
 		csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 		csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
 		csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
+		csi.NodeServiceCapability_RPC_VOLUME_MOUNT_GROUP,
 	})
 
 	d.vcap = MapVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{
