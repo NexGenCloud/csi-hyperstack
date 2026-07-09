@@ -266,6 +266,10 @@ func (hs *Hyperstack) UpdateVolumeAttachment(ctx context.Context, volumeId int) 
 		return nil, err
 	}
 
+	if len(*getVolume.Attachments) == 0 {
+		return nil, fmt.Errorf("volume %d has no attachments to update", volumeId)
+	}
+
 	var volumeAttachmentID = *(*getVolume.Attachments)[0].Id
 
 	var protected = false
