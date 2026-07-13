@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/net/context"
 	"k8s.io/csi-hyperstack/pkg/metrics"
+	"k8s.io/klog/v2"
 )
 
 var volumeDescription = "Created by Hyperstack CSI driver"
@@ -266,8 +267,9 @@ func (hs *Hyperstack) UpdateVolumeAttachment(ctx context.Context, volumeId int) 
 		return nil, err
 	}
 
-	if len(*getVolume.Attachments) == 0 {
-		return nil, fmt.Errorf("volume %d has no attachments to update", volumeId)
+	if getVolume.Attachments == nil || len(*getVolume.Attachments) == 0 {
+		klog.Infof("UpdateVolumeAttachment: volume %d has no active attachments, skipping", volumeId)
+		return nil, nil
 	}
 
 	var volumeAttachmentID = *(*getVolume.Attachments)[0].Id
