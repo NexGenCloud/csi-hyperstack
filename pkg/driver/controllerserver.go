@@ -204,22 +204,21 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	klog.Infof("ControllerPublishVolume: GetVolume succeeded -\nStatus: %s\nName: %s\nID: %d\nSize:%d", *getVolume.Status, *getVolume.Name, *getVolume.Id, *getVolume.Size)
 	if *getVolume.Status == "in-use" {
 		klog.Infof("ControllerPublishVolume: Volume %s is already in use", *getVolume.Name)
-		if len(*getVolume.Attachments) > 0 {
-			attachedInstanceId := *(*getVolume.Attachments)[0].InstanceId
-			if err != nil {
-				klog.Errorf("ControllerPublishVolume: Failed to convert attached instance ID to int: %v", err)
-				return nil, status.Errorf(codes.Internal, "Failed to convert attached instance ID to int: %v", err)
-			}
-			klog.Infof("ControllerPublishVolume: Volume %s is already attached to node %d", *getVolume.Name, attachedInstanceId)
-			if attachedInstanceId == vmId {
-				return &csi.ControllerPublishVolumeResponse{
-					PublishContext: map[string]string{
-						volNameKeyFromControllerPublishVolume: *(*getVolume.Attachments)[0].Device,
-					},
-				}, nil
-			}
-			klog.Infof("ControllerPublishVolume: Volume attached to wrong node (attached: %d, requested: %d), detaching", attachedInstanceId, vmId)
-			_, err = cloud.DetachVolumeFromNode(ctx, attachedInstanceId, volumeIDInt)
+		if a := findVolumeAttachment(getVolume.Attachments, vmId); a != nil {
+			// Already attached to the requested node — idempotent success.
+			klog.Infof("ControllerPublishVolume: Volume %s is already attached to node %d", *getVolume.Name, vmId)
+			return &csi.ControllerPublishVolumeResponse{
+				PublishContext: map[string]string{
+					volNameKeyFromControllerPublishVolume: *a.Device,
+				},
+			}, nil
+		}
+		// Attached to a different node — detach it first.
+		if getVolume.Attachments != nil && len(*getVolume.Attachments) > 0 {
+			wrongAttachment := (*getVolume.Attachments)[0]
+			wrongInstanceId := *wrongAttachment.InstanceId
+			klog.Infof("ControllerPublishVolume: Volume attached to wrong node (attached: %d, requested: %d), detaching", wrongInstanceId, vmId)
+			_, err = cloud.DetachVolumeFromNode(ctx, wrongInstanceId, volumeIDInt)
 			if err != nil {
 				klog.Errorf("ControllerPublishVolume: Failed to detach from wrong node: %v", err)
 				return nil, status.Errorf(codes.Internal, "ControllerPublishVolume: Failed to detach from wrong node: %v", err)
@@ -316,6 +315,13 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	}
 	klog.Infof("ControllerUnpublishVolume: GetVolume succeeded -\nStatus: %s\nName: %s\nID: %d\nSize:%d", *getVolume.Status, *getVolume.Name, *getVolume.Id, *getVolume.Size)
 	if *getVolume.Status == "in-use" {
+		// CSI spec: if the volume is not attached to this specific node, return
+		// success — the unpublish is already satisfied (idempotent).
+		if findVolumeAttachment(getVolume.Attachments, vmId) == nil {
+			klog.Infof("ControllerUnpublishVolume: volume %d has no attachment to node %d, treating as already detached", volumeIDInt, vmId)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
+
 		detachVolume, err := cloud.DetachVolumeFromNode(ctx, vmId, volumeIDInt)
 		if err != nil {
 			klog.Errorf("ControllerUnpublishVolume: Failed to DetachVolumeFromNode: %v", err)
