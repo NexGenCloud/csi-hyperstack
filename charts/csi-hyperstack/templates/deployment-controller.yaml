@@ -21,6 +21,10 @@ spec:
         - name: {{ .Values.imagePullSecrets }}
       {{- end }}
       serviceAccountName: csi-hyperstack-controller-sa
+      {{- if .Values.controller.tolerations }}
+      tolerations:
+        {{- toYaml .Values.controller.tolerations | nindent 8 }}
+      {{- end }}
       containers:
         - name: csi-hyperstack
           image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag | default .Chart.AppVersion }}

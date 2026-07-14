@@ -21,6 +21,10 @@ spec:
       {{- end }}
       serviceAccountName: csi-hyperstack-node-sa
       hostNetwork: true
+      {{- if .Values.node.tolerations }}
+      tolerations:
+        {{- toYaml .Values.node.tolerations | nindent 8 }}
+      {{- end }}
       containers:
         - name: csi-hyperstack-node
           image: {{ .Values.components.csiHyperstack.image }}:{{ .Values.components.csiHyperstack.tag | default .Chart.AppVersion }}
