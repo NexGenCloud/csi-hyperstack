@@ -3,5 +3,5 @@ name: csi-hyperstack
 description: |
   HELM chart for Hyperstack CSI drvier deployment
 type: application
-version: 0.0.9
+version: 0.0.10
 appVersion: v0.0.6
