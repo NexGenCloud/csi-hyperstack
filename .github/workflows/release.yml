@@ -1,15 +1,57 @@
-name: Release Charts
+name: Release
 
+# A tag is the single trigger: it builds the image, then publishes the chart.
+# Chart-releaser makes its own csi-hyperstack-<version> tags, which do not
+# match v*.*.* and so cannot re-trigger this.
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*'
+
+env:
+  IMAGE: ghcr.io/nexgencloud/csi-hyperstack/csi
 
 jobs:
-  release:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # amd64 only: the Dockerfile hardcodes GOARCH=amd64 in the go build.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          tags: ${{ env.IMAGE }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  chart:
+    needs: image
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,6 +62,18 @@ jobs:
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      # The tag is the single source of truth. Chart.yaml is rewritten here,
+      # not committed, so the two versions can never drift apart.
+      # Helm tolerates the leading v and ignores it when comparing versions,
+      # so v0.0.7 ranks below the already released 0.0.10.
+      - name: Set versions from the tag
+        run: |
+          set -euo pipefail
+          sed -i -E "s|^version:.*|version: ${GITHUB_REF_NAME}|" \
+            charts/csi-hyperstack/Chart.yaml
+          sed -i -E "s|^appVersion:.*|appVersion: ${GITHUB_REF_NAME}|" \
+            charts/csi-hyperstack/Chart.yaml
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
