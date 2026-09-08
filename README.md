@@ -1,5 +1,5 @@
 # Hyperstack CSI Driver
-Current released image - `reg.digitalocean.ngbackend.cloud/hyperstack-csi-driver/csi:v0.0.1`
+Current released image - `ghcr.io/nexgencloud/csi-hyperstack/csi:v0.0.11`
 
 ## Introduction
 This documentation provides instructions for installing and using the Hyperstack CSI Driver. The CSI provisioner for hyerstack CSI driver is `hyperstack.csi.nexgencloud.com`.
@@ -37,15 +37,48 @@ grpcurl --plaintext unix:///tmp/csi-hyperstack.sock list
 
 You can invoke a specific RPC method for a given operation using `grpcurl`.
 
-To build the project:
+To build the image locally:
 
 ```bash
-make build VERSION=<VERSION>
+make docker-build VERSION=<VERSION>          # build only
+make docker-build-push VERSION=<VERSION>     # build and push to GHCR
 ```
 
 ## Usage
 
 Refer to the [charts/csi-hyperstack](./charts/csi-hyperstack/README.md) documentation for details on installation and usage with Helm.
+
+## Releasing
+
+Pushing a `v*.*.*` tag is the whole release. It runs `.github/workflows/release.yml`,
+which builds the image and then publishes the chart.
+
+```bash
+git tag v0.0.12 origin/main
+git push origin v0.0.12
+```
+
+The tag is the single source of truth for both versions:
+
+| | value for tag `v0.0.12` |
+|---|---|
+| image | `ghcr.io/nexgencloud/csi-hyperstack/csi:v0.0.12` |
+| chart `version` | `v0.0.12` |
+| chart `appVersion` | `v0.0.12` |
+
+`Chart.yaml` is rewritten inside the workflow before packaging, so its committed
+values are ignored — do not bump them by hand.
+
+The chart job runs only after the image push succeeds, so a published chart can
+never point at an image that does not exist.
+
+Charts are published as GitHub Releases tagged `csi-hyperstack-<version>`, with
+the index committed to the `gh-pages` branch and served at
+<https://nexgencloud.github.io/csi-hyperstack>.
+
+Versions are compared with the leading `v` ignored, so each tag must sort above
+the last released one — `v0.0.7` would rank below the existing `0.0.10` and
+never be served as latest.
 
 
 ## Documentation
