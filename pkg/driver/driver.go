@@ -61,7 +61,7 @@ type Driver struct {
 func NewDriver(opts *DriverOpts) *Driver {
 	d := &Driver{}
 	d.opts = opts
-	fmt.Printf("Driver started with opts: %#v\n", d.opts)
+	klog.Info("Driver started")
 	d.name = DriverName
 	d.version = DriverVersion
 
