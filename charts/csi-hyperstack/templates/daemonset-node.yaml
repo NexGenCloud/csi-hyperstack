@@ -38,7 +38,6 @@ spec:
             - "start"
             - "--endpoint=unix:///csi/csi.sock"
             - "--hyperstack-api-address={{ .Values.hyperstack.apiAddress }}"
-            - "--hyperstack-api-key={{ .Values.hyperstack.apiKey }}"
             - "--service-node-enabled=true"
           livenessProbe:
             exec:
@@ -68,6 +67,14 @@ spec:
               name: metrics
               protocol: TCP
           env:
+            # From the Secret, not argv: an argv value is visible in the pod
+            # spec, /proc/<pid>/cmdline and audit logs. main.go binds
+            # HYPERSTACK_API_KEY through viper.
+            - name: HYPERSTACK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "csi-hyperstack.fullname" . }}-secrets
+                  key: apiKey
             - name: DRIVER_NAME
               value: "hyperstack.csi.nexgencloud.com"
             - name: DRIVER_VERSION
