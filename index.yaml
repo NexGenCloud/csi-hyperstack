@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   csi-hyperstack:
   - apiVersion: v2
+    appVersion: v0.0.13
+    created: "2026-09-16T15:41:40.86012859Z"
+    description: 'HELM chart for Hyperstack CSI drvier deployment '
+    digest: 942dc2c68ee5daa79c94e84b916abe967df1ed5b2d4679d38a19b7a9f46d0298
+    name: csi-hyperstack
+    type: application
+    urls:
+    - https://github.com/NexGenCloud/csi-hyperstack/releases/download/csi-hyperstack-v0.0.13/csi-hyperstack-v0.0.13.tgz
+    version: v0.0.13
+  - apiVersion: v2
     appVersion: v0.0.12
     created: "2026-09-15T14:31:40.065059333Z"
     description: 'HELM chart for Hyperstack CSI drvier deployment '
@@ -91,4 +101,4 @@ entries:
     urls:
     - https://github.com/NexGenCloud/csi-hyperstack/releases/download/csi-hyperstack-0.0.1/csi-hyperstack-0.0.1.tgz
     version: 0.0.1
-generated: "2026-09-15T14:31:40.065109426Z"
+generated: "2026-09-16T15:41:40.860164843Z"
