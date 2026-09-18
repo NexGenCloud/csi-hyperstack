@@ -292,14 +292,14 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 		return nil, fmt.Errorf("failed to get node UUID: %v", err)
 	}
 	klog.Infof("NodeGetInfo called with nodeID: %#v\n", nodeID)
+	// No AccessibleTopology: volumes aren't node/zone scoped in Hyperstack, and reporting
+	// each node's unique instance-id as a topology segment previously caused
+	// external-provisioner to bake it into every PV's nodeAffinity as a hard requirement,
+	// pinning volumes to whichever specific nodes existed at creation time. See
+	// identityserver.go for the full reasoning.
 	return &csi.NodeGetInfoResponse{
 		NodeId:            nodeID,
 		MaxVolumesPerNode: 10,
-		AccessibleTopology: &csi.Topology{
-			Segments: map[string]string{
-				"hyperstack.cloud/instance-id": nodeID,
-			},
-		},
 	}, nil
 }
 
