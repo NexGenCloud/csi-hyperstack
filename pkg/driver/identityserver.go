@@ -57,13 +57,14 @@ func (ids *identityServer) GetPluginCapabilities(
 					},
 				},
 			},
-			{
-				Type: &csi.PluginCapability_Service_{
-					Service: &csi.PluginCapability_Service{
-						Type: csi.PluginCapability_Service_VOLUME_ACCESSIBILITY_CONSTRAINTS,
-					},
-				},
-			},
+			// VOLUME_ACCESSIBILITY_CONSTRAINTS intentionally not declared: volumes aren't
+			// zone/node scoped in Hyperstack (CreateVolume places everything in one cluster-wide
+			// environment, and ControllerPublishVolume can attach any volume to any node,
+			// including auto-detaching from a previous node first). Declaring this capability
+			// caused external-provisioner to collect NodeGetInfo's per-node instance-id topology
+			// segment from every node and bake it into each PV's nodeAffinity as a hard
+			// requirement, permanently pinning volumes to whichever nodes existed at creation
+			// time — breaking replacement/migration of any node still holding a PVC.
 			{
 				Type: &csi.PluginCapability_VolumeExpansion_{
 					VolumeExpansion: &csi.PluginCapability_VolumeExpansion{
