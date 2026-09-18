@@ -69,7 +69,7 @@ func (cs *controllerServer) CreateVolume(
 			return nil, status.Error(codes.AlreadyExists, "CreateVolume: Volume Already exists with same name and different capacity")
 		}
 		klog.Infof("CreateVolume: Volume %d already exists in Environment %s: size %d GiB", *volumes[0].Id, *volumes[0].Environment.Name, *volumes[0].Size)
-		return getCreateVolumeResponse(&volumes[0], req.GetAccessibilityRequirements()), nil
+		return getCreateVolumeResponse(&volumes[0]), nil
 	} else if len(volumes) > 1 {
 		klog.Infof("CreateVolume: found multiple existing volumes with selected name (%s) during create", volName)
 		return nil, status.Error(codes.Internal, "CreateVolume: Multiple volumes reported by Cinder with same name")
@@ -131,7 +131,7 @@ func (cs *controllerServer) CreateVolume(
 	}
 
 	klog.Infof("CreateVolume: Volume Successfully created-Volume Name: %s\nEnvironment: %s\nSize: %d GiB\nStatus: %s", *vol.Name, *vol.Environment.Name, *vol.Size, *vol.Status)
-	return getCreateVolumeResponse(vol, req.GetAccessibilityRequirements()), nil
+	return getCreateVolumeResponse(vol), nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
@@ -454,21 +454,17 @@ func (cs *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi
 	return &csi.ControllerModifyVolumeResponse{}, nil
 }
 
-func getCreateVolumeResponse(vol *volume.VolumeFields, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {
-
+func getCreateVolumeResponse(vol *volume.VolumeFields) *csi.CreateVolumeResponse {
 	var volsrc *csi.VolumeContentSource
-	var accessibleTopology []*csi.Topology
 
-	if accessibleTopologyReq != nil {
-		accessibleTopology = accessibleTopologyReq.GetPreferred()
-	}
-
+	// No AccessibleTopology: volumes aren't node/zone scoped in Hyperstack, and the driver
+	// no longer declares VOLUME_ACCESSIBILITY_CONSTRAINTS, so external-provisioner won't
+	// bake a nodeAffinity into the resulting PV. See identityserver.go for the full reasoning.
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:           strconv.Itoa(*vol.Id),
-			CapacityBytes:      int64(*vol.Size * 1024 * 1024 * 1024),
-			AccessibleTopology: accessibleTopology,
-			ContentSource:      volsrc,
+			VolumeId:      strconv.Itoa(*vol.Id),
+			CapacityBytes: int64(*vol.Size * 1024 * 1024 * 1024),
+			ContentSource: volsrc,
 		},
 	}
 
