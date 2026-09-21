@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime"
+	"strings"
 )
 
 type HyperstackClient struct {
@@ -30,6 +32,8 @@ func (c HyperstackClient) GetAddHeadersFn() func(ctx context.Context, req *http.
 	return func(ctx context.Context, req *http.Request) error {
 		req.Header.Add("api_key", c.ApiKey)
 		req.Header.Add("Hyperstack-Client", fmt.Sprintf("csi-hyperstack/%s", c.Version))
+		req.Header.Add("User-Agent", fmt.Sprintf("csi-hyperstack/%s (Go/%s; %s/%s)",
+			c.Version, strings.TrimPrefix(runtime.Version(), "go"), runtime.GOOS, runtime.GOARCH))
 		return nil
 	}
 }
