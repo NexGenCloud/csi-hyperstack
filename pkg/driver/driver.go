@@ -64,6 +64,9 @@ func NewDriver(opts *DriverOpts) *Driver {
 	klog.Info("Driver started")
 	d.name = DriverName
 	d.version = DriverVersion
+	if d.version == "" {
+		d.version = "dev"
+	}
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.version)
@@ -73,6 +76,7 @@ func NewDriver(opts *DriverOpts) *Driver {
 		Client: hyperstack.NewHyperstackClient(
 			opts.HyperstackApiKey,
 			opts.HyperstackApiAddress,
+			d.version,
 		),
 	}
 

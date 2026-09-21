@@ -19,7 +19,7 @@ func TestGetVolume(t *testing.T) {
 	}
 
 	// Create a new Hyperstack client
-	client := NewHyperstackClient(apiKey, apiServer)
+	client := NewHyperstackClient(apiKey, apiServer, "test")
 	hs := &Hyperstack{
 		Client: client,
 	}
@@ -77,7 +77,7 @@ func TestAttachVolumeToNode(t *testing.T) {
 	apiKey := "ca172084-30c8-419d-9148-b88822a992d6"
 	apiServer := "https://staging-infrahub-api.internal.ngbackend.cloud/v1"
 
-	client := NewHyperstackClient(apiKey, apiServer)
+	client := NewHyperstackClient(apiKey, apiServer, "test")
 	hs := &Hyperstack{
 		Client: client,
 	}
@@ -114,7 +114,7 @@ func TestDetachVolumeFromNode(t *testing.T) {
 	apiServer := "https://staging-infrahub-api.internal.ngbackend.cloud/v1"
 
 	// Create a new Hyperstack client
-	client := NewHyperstackClient(apiKey, apiServer)
+	client := NewHyperstackClient(apiKey, apiServer, "test")
 	hs := &Hyperstack{
 		Client: client,
 	}
@@ -165,7 +165,7 @@ func TestGetClusterId(t *testing.T) {
 	apiKey := "ca172084-30c8-419d-9148-b88822a992d6"
 	apiServer := "https://staging-infrahub-api.internal.ngbackend.cloud/v1"
 
-	client := NewHyperstackClient(apiKey, apiServer)
+	client := NewHyperstackClient(apiKey, apiServer, "test")
 	hs := &Hyperstack{
 		Client: client,
 	}
