@@ -1,6 +1,4 @@
 # Hyperstack CSI Driver
-Current released image - `ghcr.io/nexgencloud/csi-hyperstack/csi:v0.0.13`
-
 ## Introduction
 This documentation provides instructions for installing and using the Hyperstack CSI Driver. The CSI provisioner for hyerstack CSI driver is `hyperstack.csi.nexgencloud.com`.
 Before you begin, ensure you have the following tools installed:

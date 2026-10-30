@@ -84,7 +84,7 @@ func (hs *Hyperstack) GetVolume(ctx context.Context, volumeID int) (*volume.Volu
 	if err != nil {
 		return nil, err
 	}
-	result, err := client.FetchVolumeDetailsWithResponse(ctx, volumeID)
+	result, err := client.GetVolumeWithResponse(ctx, volumeID)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (hs *Hyperstack) AttachVolumeToNode(ctx context.Context, virtualMachineId i
 		return nil, err
 	}
 	var protected = true
-	result, err := client.AttachVolumesToVirtualMachineWithResponse(
+	result, err := client.AttachVolumesToVMWithResponse(
 		ctx,
 		virtualMachineId,
 		volume_attachment.AttachVolumesPayload{
@@ -254,7 +254,7 @@ func (hs *Hyperstack) AttachVolumeToNode(ctx context.Context, virtualMachineId i
 	return &attachments[0], nil
 }
 
-func (hs *Hyperstack) UpdateVolumeAttachment(ctx context.Context, volumeId int) (*volume_attachment.UpdateAVolumeAttachmentResponse, error) {
+func (hs *Hyperstack) UpdateVolumeAttachment(ctx context.Context, volumeId int) (*volume_attachment.UpdateVolumeAttachmentResponse, error) {
 	client, err := volume_attachment.NewClientWithResponses(
 		hs.Client.ApiServer,
 		volume_attachment.WithRequestEditorFn(hs.Client.GetAddHeadersFn()),
@@ -275,7 +275,7 @@ func (hs *Hyperstack) UpdateVolumeAttachment(ctx context.Context, volumeId int) 
 	var volumeAttachmentID = *(*getVolume.Attachments)[0].Id
 
 	var protected = false
-	result, err := client.UpdateAVolumeAttachmentWithResponse(ctx, volumeAttachmentID, volume_attachment.UpdateVolumeAttachmentPayload{Protected: &protected})
+	result, err := client.UpdateVolumeAttachmentWithResponse(ctx, volumeAttachmentID, volume_attachment.UpdateVolumeAttachmentPayload{Protected: &protected})
 	if result == nil {
 		return nil, fmt.Errorf("received nil response from volume attachment API")
 	}
@@ -314,7 +314,7 @@ func (hs *Hyperstack) DetachVolumeFromNode(ctx context.Context, virtualMachineId
 		return nil, err
 	}
 
-	result, err := client.DetachVolumesFromVirtualMachineWithResponse(
+	result, err := client.DetachVolumesFromVMWithResponse(
 		ctx,
 		virtualMachineId,
 		volume_attachment.DetachVolumesPayload{
