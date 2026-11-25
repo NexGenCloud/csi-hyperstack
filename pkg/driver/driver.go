@@ -32,6 +32,25 @@ type DriverOpts struct {
 	HyperstackApiAddress string
 }
 
+const redactedApiKey = "[REDACTED]"
+
+// String and GoString keep HyperstackApiKey out of logs. Both are needed:
+// %v and %+v go through String, %#v through GoString, and fmt does not fall
+// back from GoStringer to Stringer.
+func (o DriverOpts) String() string {
+	return fmt.Sprintf(
+		"DriverOpts{Endpoint:%s HyperstackApiKey:%s HyperstackApiAddress:%s}",
+		o.Endpoint, redactedApiKey, o.HyperstackApiAddress,
+	)
+}
+
+func (o DriverOpts) GoString() string {
+	return fmt.Sprintf(
+		"driver.DriverOpts{Endpoint:%q, HyperstackApiKey:%q, HyperstackApiAddress:%q}",
+		o.Endpoint, redactedApiKey, o.HyperstackApiAddress,
+	)
+}
+
 var (
 	volNameKeyFromControllerPublishVolume = "hyperstack/volume-name"
 )
