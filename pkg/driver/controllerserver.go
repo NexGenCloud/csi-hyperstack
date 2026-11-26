@@ -33,7 +33,6 @@ func (cs *controllerServer) CreateVolume(
 	req *csi.CreateVolumeRequest,
 ) (*csi.CreateVolumeResponse, error) {
 	klog.Infof("==============Create volume called ==============")
-	klog.Infof("CreateVolume: Driver opts: %#v\n", cs.driver.opts)
 	if err := cs.driver.ValidateControllerServiceRequest(
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 	); err != nil {
